@@ -1,10 +1,10 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — APPLICATION BOOTSTRAP v7.0
- * Main Entry Point — Module Initialization & Wiring
+ * FLAGSTAR BANK  APPLICATION BOOTSTRAP v7.0
+ * Main Entry Point  Module Initialization & Wiring
  * ================================================================
  * This file initializes all modules and wires them together.
- * Load order: Logger → Storage → Ledger → Security → StateMachine → UIEngine → Router → App
+ * Load order: Logger  Storage  Ledger  Security  StateMachine  UIEngine  Router  App
  * ================================================================
  */
 
@@ -40,8 +40,13 @@ const AuthState = {
         SystemLogger.log('USER_LOGIN', user.id || 'UNKNOWN', `User ${user.name} logged in as ${user.role}`);
 
         // Navigate to dashboard via state machine
-        StateMachine.transition('AUTH_DASHBOARD');
-        window.location.hash = '#/';
+        if (this.role === 'admin') {
+            StateMachine.transition('ADMIN_DASHBOARD');
+            window.location.hash = '#/admin';
+        } else {
+            StateMachine.transition('AUTH_DASHBOARD');
+            window.location.hash = '#/';
+        }
     },
 
     logout() {
@@ -62,7 +67,7 @@ const AuthState = {
 };
 
 // ================================================================
-// ROUTER (Refactored — Only dispatches to State Machine)
+// ROUTER (Refactored  Only dispatches to State Machine)
 // ================================================================
 const Router = {
     init() {
@@ -143,7 +148,7 @@ const App = {
 
         const currentEl = document.getElementById('sort-' + key);
         if (currentEl) {
-            currentEl.innerText = this.currentSort.dir === 'asc' ? '▲' : '▼';
+            currentEl.innerText = this.currentSort.dir === 'asc' ? '' : '';
         }
 
         this.applyFilters();
@@ -218,7 +223,7 @@ const App = {
             if (authResult.authorized) {
                 // Record the transaction in the ledger
                 LedgerEngine.record({
-                    accountNumber: transferData.fromAccount || '••••1234',
+                    accountNumber: transferData.fromAccount || '1234',
                     type: 'transfer',
                     amount: -(amount),
                     fees: transferData.fees || 0,
@@ -256,7 +261,7 @@ const App = {
 
             if (authResult.authorized) {
                 LedgerEngine.record({
-                    accountNumber: transferData.fromAccount || '••••1234',
+                    accountNumber: transferData.fromAccount || '1234',
                     type: 'transfer',
                     amount: -(amount),
                     fees: transferData.fees || 0,
@@ -288,7 +293,7 @@ const App = {
             const transferData = StateMachine.getFunnelData('transfer');
 
             LedgerEngine.record({
-                accountNumber: transferData.fromAccount || '••••1234',
+                accountNumber: transferData.fromAccount || '1234',
                 type: 'transfer',
                 amount: -(transferData.amount || 0),
                 fees: transferData.fees || 0,
@@ -370,7 +375,7 @@ const App = {
 };
 
 // ================================================================
-// EVENT WIRING — Attach events after each state transition
+// EVENT WIRING  Attach events after each state transition
 // ================================================================
 function attachEventsForState(state) {
     UIEngine._closeMobileNav();
@@ -407,7 +412,7 @@ function attachEventsForState(state) {
                 email: document.getElementById('reg-email').value,
                 phone: document.getElementById('reg-phone').value
             });
-            SystemLogger.log('REGISTRATION', 'USER', 'Step 1 completed — personal data submitted.');
+            SystemLogger.log('REGISTRATION', 'USER', 'Step 1 completed  personal data submitted.');
             Router.navigate('/register/step2');
         });
     }
@@ -420,7 +425,7 @@ function attachEventsForState(state) {
                 idType: document.getElementById('reg-id-type').value,
                 idNumber: document.getElementById('reg-id-num').value
             });
-            SystemLogger.log('REGISTRATION', 'USER', 'Step 2 completed — KYC data submitted.');
+            SystemLogger.log('REGISTRATION', 'USER', 'Step 2 completed  KYC data submitted.');
             Router.navigate('/register/step3');
         });
     }
@@ -477,7 +482,7 @@ function attachEventsForState(state) {
                 fromAccount: document.getElementById('trans-from').value,
                 toRecipient: document.getElementById('trans-to').value
             });
-            SystemLogger.log('TRANSFER', 'USER', 'Transfer step 1 — accounts selected.');
+            SystemLogger.log('TRANSFER', 'USER', 'Transfer step 1  accounts selected.');
             Router.navigate('/transfer/step2');
         });
     }
@@ -517,7 +522,7 @@ function attachEventsForState(state) {
                 totalDebit: fees.totalDebit,
                 description: document.getElementById('trans-desc').value || 'Wire Transfer'
             });
-            SystemLogger.log('TRANSFER', 'USER', `Transfer step 2 — amount: $${amount}`);
+            SystemLogger.log('TRANSFER', 'USER', `Transfer step 2  amount: $${amount}`);
             Router.navigate('/transfer/step3');
         });
     }
@@ -563,7 +568,7 @@ function attachEventsForState(state) {
                 income: parseFloat(document.getElementById('loan-income').value) || 0,
                 housing: parseFloat(document.getElementById('loan-housing').value) || 0
             });
-            SystemLogger.log('LOAN', 'USER', 'Loan step 3 — financial details submitted.');
+            SystemLogger.log('LOAN', 'USER', 'Loan step 3  financial details submitted.');
             Router.navigate('/loans/step4');
         });
     }
@@ -641,14 +646,14 @@ function attachEventsForState(state) {
             SystemLogger.log('KYC_DECISION', 'ADMIN', 'Identity approved.');
         });
         if (rejectBtn) rejectBtn.addEventListener('click', () => {
-            UIEngine.toast('KYC Rejected — resubmission required.', 'warning');
+            UIEngine.toast('KYC Rejected  resubmission required.', 'warning');
             SystemLogger.log('KYC_DECISION', 'ADMIN', 'Identity rejected.', 'WARN');
         });
     }
 }
 
 // ================================================================
-// BOOTSTRAP — Initialize all modules in correct order
+// BOOTSTRAP  Initialize all modules in correct order
 // ================================================================
 (function boot() {
     // Phase 1: Core engines
@@ -659,14 +664,14 @@ function attachEventsForState(state) {
     // Phase 2: UI Engine
     UIEngine.init();
 
-    // Phase 3: State Machine — Subscribe UI rendering
+    // Phase 3: State Machine  Subscribe UI rendering
     StateMachine.subscribe((state, data) => {
         UIEngine.renderPage(state, data);
         // Attach interactive events after render
         setTimeout(() => attachEventsForState(state), 50);
     });
 
-    // Phase 4: Router — Initializes hash listener and triggers first render
+    // Phase 4: Router  Initializes hash listener and triggers first render
     Router.init();
 
     // Phase 5: Verification
@@ -676,7 +681,7 @@ function attachEventsForState(state) {
         `Storage: OK. Security: ${SecurityEngine.getVerificationStatus().allVerified ? 'UNLOCKED' : 'LOCKED'}.`
     );
 
-    console.log("%cFLAGSTAR BANK v7.0 — DETERMINISTIC ENGINE", "color: #C8102E; font-size: 20px; font-weight: bold;");
+    console.log("%cFLAGSTAR BANK v7.0  DETERMINISTIC ENGINE", "color: #C8102E; font-size: 20px; font-weight: bold;");
     console.log("%cState Machine Active | Ledger Engine Active | Security Layers Active", "color: #10b981; font-weight: bold;");
-    console.log("Modules: SystemLogger ✓ | StorageEngine ✓ | LedgerEngine ✓ | SecurityEngine ✓ | StateMachine ✓ | UIEngine ✓");
+    console.log("Modules: SystemLogger  | StorageEngine  | LedgerEngine  | SecurityEngine  | StateMachine  | UIEngine ");
 })();

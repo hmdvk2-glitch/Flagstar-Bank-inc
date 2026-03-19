@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — LEDGER ENGINE v7.0
+ * FLAGSTAR BANK  LEDGER ENGINE v7.0
  * Immutable Transaction Recording System
  * ================================================================
  * All financial actions must be recorded through this engine.
@@ -67,7 +67,7 @@ const LedgerEngine = {
         SystemLogger.log(
             'TRANSACTION_RECORDED',
             txnData.actor || 'SYSTEM',
-            `${transaction.type} $${Math.abs(transaction.amount).toFixed(2)} on ${transaction.accountNumber} — ${transaction.description}`
+            `${transaction.type} $${Math.abs(transaction.amount).toFixed(2)} on ${transaction.accountNumber}  ${transaction.description}`
         );
 
         return transaction;

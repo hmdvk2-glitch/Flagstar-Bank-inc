@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — SYSTEM LOGGER v7.0
+ * FLAGSTAR BANK  SYSTEM LOGGER v7.0
  * Structured Event Logging Engine
  * ================================================================
  * All system actions are logged with structured diagnostics.
@@ -48,7 +48,7 @@ const SystemLogger = {
         }[level] || '#666';
 
         console.log(
-            `%c[${level}] %c${eventType} %c— ${details}`,
+            `%c[${level}] %c${eventType} %c ${details}`,
             `color: ${color}; font-weight: bold;`,
             'color: #333; font-weight: 600;',
             'color: #666;'
@@ -137,12 +137,12 @@ const SystemLogger = {
         try {
             localStorage.setItem('flagstar_logs', JSON.stringify(this._logs.slice(0, 200)));
         } catch (e) {
-            // Storage quota exceeded — trim logs
+            // Storage quota exceeded  trim logs
             this._logs = this._logs.slice(0, 50);
             try {
                 localStorage.setItem('flagstar_logs', JSON.stringify(this._logs));
             } catch (e2) {
-                // Silent fallback — cannot persist
+                // Silent fallback  cannot persist
             }
         }
     },

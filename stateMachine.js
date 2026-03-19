@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — STATE MACHINE CONTROLLER v7.0
+ * FLAGSTAR BANK  STATE MACHINE CONTROLLER v7.0
  * Central Deterministic State Controller
  * ================================================================
  * ALL application flow is routed through this controller.
@@ -236,14 +236,18 @@ const StateMachine = {
         // Handle dynamic home
         if (newState === 'DYNAMIC_HOME') {
             const session = StorageEngine.getSession();
-            newState = session ? 'AUTH_DASHBOARD' : 'PUBLIC_HOME';
+            if (session) {
+                newState = (session.role === 'admin') ? 'ADMIN_DASHBOARD' : 'AUTH_DASHBOARD';
+            } else {
+                newState = 'PUBLIC_HOME';
+            }
         }
 
         // Auth gate
         if (this._authRequired.includes(newState)) {
             const session = StorageEngine.getSession();
             if (!session) {
-                SystemLogger.log('AUTH_GATE', 'STATE_MACHINE', `Access denied to ${newState} — not authenticated`, 'WARN');
+                SystemLogger.log('AUTH_GATE', 'STATE_MACHINE', `Access denied to ${newState}  not authenticated`, 'WARN');
                 this.transition('PUBLIC_LOGIN');
                 return false;
             }
@@ -254,14 +258,14 @@ const StateMachine = {
             const session = StorageEngine.getSession();
             if (!session || session.role !== 'admin') {
                 SystemLogger.log('ADMIN_GATE', 'STATE_MACHINE', `Admin access denied to ${newState}`, 'WARN');
-                this.transition('PUBLIC_HOME');
+                this.transition('PUBLIC_LOGIN');
                 return false;
             }
         }
 
         // Funnel sequence validation
         if (!this._validateFunnelTransition(newState)) {
-            SystemLogger.log('FUNNEL_GATE', 'STATE_MACHINE', `Invalid funnel sequence: ${this._currentState} → ${newState}`, 'WARN');
+            SystemLogger.log('FUNNEL_GATE', 'STATE_MACHINE', `Invalid funnel sequence: ${this._currentState}  ${newState}`, 'WARN');
             return false;
         }
 
@@ -270,7 +274,7 @@ const StateMachine = {
         this._currentState = newState;
         this._stateData = data;
 
-        SystemLogger.log('STATE_TRANSITION', 'STATE_MACHINE', `${this._previousState || 'INIT'} → ${newState}`);
+        SystemLogger.log('STATE_TRANSITION', 'STATE_MACHINE', `${this._previousState || 'INIT'}  ${newState}`);
 
         // Notify listeners
         this._notifyListeners(newState, data);
@@ -326,12 +330,12 @@ const StateMachine = {
 
     /**
      * Validate funnel step ordering
-     * Registration: 1 → 2 → 3 → 4
-     * Transfer: 1 → 2 → 3 → TAX → IRS → 4
-     * Loan: 1 → 2 → 3 → 4 → 5
+     * Registration: 1  2  3  4
+     * Transfer: 1  2  3  TAX  IRS  4
+     * Loan: 1  2  3  4  5
      */
     _validateFunnelTransition(newState) {
-        // Registration funnel — can always enter step 1
+        // Registration funnel  can always enter step 1
         const regSteps = ['REG_STEP_1', 'REG_STEP_2', 'REG_STEP_3', 'REG_STEP_4'];
         if (regSteps.includes(newState) && newState !== 'REG_STEP_1') {
             const currentIdx = regSteps.indexOf(this._currentState);
@@ -342,7 +346,7 @@ const StateMachine = {
             }
         }
 
-        // Transfer funnel — can always enter step 1 if authenticated
+        // Transfer funnel  can always enter step 1 if authenticated
         const transferSteps = ['TRANSFER_STEP_1', 'TRANSFER_STEP_2', 'TRANSFER_STEP_3', 'TRANSFER_VERIFY_TAX', 'TRANSFER_VERIFY_IRS', 'TRANSFER_STEP_4'];
         if (transferSteps.includes(newState) && newState !== 'TRANSFER_STEP_1') {
             const currentIdx = transferSteps.indexOf(this._currentState);
@@ -352,7 +356,7 @@ const StateMachine = {
             }
         }
 
-        // Loan funnel — can always enter step 1
+        // Loan funnel  can always enter step 1
         const loanSteps = ['LOAN_STEP_1', 'LOAN_STEP_2', 'LOAN_STEP_3', 'LOAN_STEP_4', 'LOAN_STEP_5'];
         if (loanSteps.includes(newState) && newState !== 'LOAN_STEP_1') {
             const currentIdx = loanSteps.indexOf(this._currentState);

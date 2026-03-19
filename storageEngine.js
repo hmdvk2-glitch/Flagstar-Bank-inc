@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — STORAGE ENGINE v7.0
+ * FLAGSTAR BANK  STORAGE ENGINE v7.0
  * Local Storage Database with Schema Enforcement
  * ================================================================
  * All data persistence must occur through this engine.
@@ -45,7 +45,7 @@ const StorageEngine = {
             }
             if (migrated) {
                 this._rawSave(existing);
-                SystemLogger.log('STORAGE_MIGRATION', 'SYSTEM', 'Schema migration applied — missing tables added.');
+                SystemLogger.log('STORAGE_MIGRATION', 'SYSTEM', 'Schema migration applied  missing tables added.');
             }
             SystemLogger.log('STORAGE_INIT', 'SYSTEM', `Storage engine loaded. Tables: ${Object.keys(existing).join(', ')}`);
         }
@@ -260,7 +260,7 @@ const StorageEngine = {
             email: 'john.doe@example.com',
             phone: '+1 (555) 123-4567',
             dob: '1988-05-14',
-            ssn: '•••-••-4567',
+            ssn: '--4567',
             address: '123 Financial Way, Suite 400, New York, NY 10001',
             role: 'member',
             kycStatus: 'verified',
@@ -273,7 +273,7 @@ const StorageEngine = {
             {
                 id: 'ACC-checking-001',
                 userId: 'USR-default-001',
-                accountNumber: '••••1234',
+                accountNumber: '1234',
                 type: 'Essential Checking',
                 balance: 12450.32,
                 status: 'active',
@@ -283,7 +283,7 @@ const StorageEngine = {
             {
                 id: 'ACC-savings-001',
                 userId: 'USR-default-001',
-                accountNumber: '••••5678',
+                accountNumber: '5678',
                 type: 'High-Yield Savings',
                 balance: 45230.89,
                 status: 'active',
@@ -293,7 +293,7 @@ const StorageEngine = {
             {
                 id: 'ACC-holiday-001',
                 userId: 'USR-default-001',
-                accountNumber: '••••9012',
+                accountNumber: '9012',
                 type: 'Holiday Club',
                 balance: 1200.00,
                 status: 'active',
@@ -304,15 +304,15 @@ const StorageEngine = {
 
         // Seed transactions
         db.transactions.push(
-            { id: 'TXN-001', accountNumber: '••••1234', type: 'debit', amount: -4.85, fees: 0, desc: 'Starbucks Coffee', category: 'Food & Dining', timestamp: '2026-03-14T10:30:00Z' },
-            { id: 'TXN-002', accountNumber: '••••1234', type: 'credit', amount: 3250.00, fees: 0, desc: 'Salary Deposit', category: 'Income', timestamp: '2026-03-13T08:00:00Z' },
-            { id: 'TXN-003', accountNumber: '••••1234', type: 'debit', amount: -67.32, fees: 0, desc: 'Amazon.com', category: 'Shopping', timestamp: '2026-03-12T14:22:00Z' },
-            { id: 'TXN-004', accountNumber: '••••1234', type: 'debit', amount: -150.00, fees: 5.40, desc: 'Transfer to Sarah', category: 'Transfer', timestamp: '2026-03-10T09:15:00Z' },
-            { id: 'TXN-005', accountNumber: '••••1234', type: 'debit', amount: -124.50, fees: 0, desc: 'Whole Foods Market', category: 'Groceries', timestamp: '2026-03-08T16:45:00Z' },
-            { id: 'TXN-006', accountNumber: '••••1234', type: 'debit', amount: -15.99, fees: 0, desc: 'Netflix Subscription', category: 'Entertainment', timestamp: '2026-03-05T00:00:00Z' },
-            { id: 'TXN-007', accountNumber: '••••1234', type: 'debit', amount: -1800.00, fees: 0, desc: 'Rent Payment', category: 'Housing', timestamp: '2026-03-01T08:00:00Z' },
-            { id: 'TXN-008', accountNumber: '••••1234', type: 'debit', amount: -45.00, fees: 0, desc: 'Gas Station', category: 'Transport', timestamp: '2026-02-28T11:30:00Z' },
-            { id: 'TXN-009', accountNumber: '••••1234', type: 'credit', amount: 500.00, fees: 0, desc: 'Freelance Payment', category: 'Income', timestamp: '2026-02-25T14:00:00Z' }
+            { id: 'TXN-001', accountNumber: '1234', type: 'debit', amount: -4.85, fees: 0, desc: 'Starbucks Coffee', category: 'Food & Dining', timestamp: '2026-03-14T10:30:00Z' },
+            { id: 'TXN-002', accountNumber: '1234', type: 'credit', amount: 3250.00, fees: 0, desc: 'Salary Deposit', category: 'Income', timestamp: '2026-03-13T08:00:00Z' },
+            { id: 'TXN-003', accountNumber: '1234', type: 'debit', amount: -67.32, fees: 0, desc: 'Amazon.com', category: 'Shopping', timestamp: '2026-03-12T14:22:00Z' },
+            { id: 'TXN-004', accountNumber: '1234', type: 'debit', amount: -150.00, fees: 5.40, desc: 'Transfer to Sarah', category: 'Transfer', timestamp: '2026-03-10T09:15:00Z' },
+            { id: 'TXN-005', accountNumber: '1234', type: 'debit', amount: -124.50, fees: 0, desc: 'Whole Foods Market', category: 'Groceries', timestamp: '2026-03-08T16:45:00Z' },
+            { id: 'TXN-006', accountNumber: '1234', type: 'debit', amount: -15.99, fees: 0, desc: 'Netflix Subscription', category: 'Entertainment', timestamp: '2026-03-05T00:00:00Z' },
+            { id: 'TXN-007', accountNumber: '1234', type: 'debit', amount: -1800.00, fees: 0, desc: 'Rent Payment', category: 'Housing', timestamp: '2026-03-01T08:00:00Z' },
+            { id: 'TXN-008', accountNumber: '1234', type: 'debit', amount: -45.00, fees: 0, desc: 'Gas Station', category: 'Transport', timestamp: '2026-02-28T11:30:00Z' },
+            { id: 'TXN-009', accountNumber: '1234', type: 'credit', amount: 500.00, fees: 0, desc: 'Freelance Payment', category: 'Income', timestamp: '2026-02-25T14:00:00Z' }
         );
 
         // Seed transfer codes

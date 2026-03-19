@@ -1,7 +1,7 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — UI ENGINE v7.0
- * Render Controller — All DOM mutations go through this engine
+ * FLAGSTAR BANK  UI ENGINE v7.0
+ * Render Controller  All DOM mutations go through this engine
  * ================================================================
  * Direct DOM manipulation outside this module is forbidden.
  * All UI changes are triggered by the State Machine.
@@ -129,15 +129,15 @@ const UIEngine = {
      */
     toast(message, type = 'info', duration = 3000) {
         const icons = {
-            success: '✅',
-            error: '❌',
-            warning: '⚠️',
-            info: 'ℹ️'
+            success: '',
+            error: '',
+            warning: '',
+            info: ''
         };
 
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
+        toast.innerHTML = `<span>${icons[type] || ''}</span><span>${message}</span>`;
 
         this._toastContainer.appendChild(toast);
 
@@ -182,14 +182,14 @@ const UIEngine = {
                         <div class="loading-bar-fill" style="width: ${percent}%"></div>
                     </div>
                     <div class="loading-percent">${percent}%</div>
-                    <div class="loading-details">${'█'.repeat(step)}${'░'.repeat(config.steps - step)}</div>
+                    <div class="loading-details">${''.repeat(step)}${''.repeat(config.steps - step)}</div>
                 </div>
             `;
         };
 
         const getCompleteHTML = () => `
             <div class="loading-complete">
-                <div class="complete-message">✅ ${config.completeMessage}</div>
+                <div class="complete-message"> ${config.completeMessage}</div>
             </div>
         `;
 

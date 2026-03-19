@@ -1,6 +1,6 @@
 /**
  * ================================================================
- * FLAGSTAR BANK — SECURITY ENGINE v7.0
+ * FLAGSTAR BANK  SECURITY ENGINE v7.0
  * Banking Security Simulation Layer
  * ================================================================
  * All transfer verification must be validated before finalization.
@@ -16,7 +16,7 @@ const SecurityEngine = {
     },
 
     _vault: {
-        'Admin@flagstarbank.com': { pass: 'admin007', profile: { id: 'admin-001', name: 'System Administrator', role: 'admin' } },
+        'admin@flagstarbank.com': { pass: 'flagstar1..', profile: { id: 'admin-001', name: 'System Administrator', role: 'admin' } },
         'member@flagstar.test': { pass: 'password123', profile: { id: 'FS-99281', name: 'John Doe', role: 'member' } }
     },
 
@@ -149,7 +149,7 @@ const SecurityEngine = {
         // Transfers under $100 only need COT
         if (amount < 100) {
             if (status.cotVerified) {
-                SystemLogger.log('TRANSFER_AUTHORIZED', 'SECURITY', `Transfer of $${amount} authorized (COT only — small amount).`);
+                SystemLogger.log('TRANSFER_AUTHORIZED', 'SECURITY', `Transfer of $${amount} authorized (COT only  small amount).`);
                 return { authorized: true, reason: 'Transfer authorized.' };
             }
             return { authorized: false, reason: 'COT verification required.', nextStep: 'COT' };
