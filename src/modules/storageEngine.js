@@ -9,7 +9,7 @@
  */
 
 import { SystemLogger } from '../services/systemLogger.js';
-import { supabase } from '../supabaseClient.js';
+import { supabase } from '../lib/supabase.js';
 
 export const StorageEngine = {
     _dbKey: 'flagstar_db',
@@ -91,111 +91,145 @@ export const StorageEngine = {
     },
 
     /**
-     * Get all records from a table
+     * Get all records from a table (Supabase)
      * @param {string} table - Table name
-     * @returns {Array} Records
+     * @returns {Promise<Array>} Records
      */
-    getAll(table) {
+    async getAll(table) {
         this._validateTable(table);
-        const db = this.loadDB();
-        return [...db[table]];
+        const mappedTable = this._mapTable(table);
+        
+        const { data, error } = await supabase
+            .from(mappedTable)
+            .select('*');
+
+        if (error) {
+            SystemLogger.error('StorageEngine', `Failed to fetch from ${table}`, error.message);
+            return [];
+        }
+        return data;
     },
 
     /**
-     * Get a single record by ID
+     * Get a single record by ID (Supabase)
      * @param {string} table - Table name
      * @param {string} id - Record ID
-     * @returns {Object|null} Record or null
+     * @returns {Promise<Object|null>} Record or null
      */
-    getById(table, id) {
+    async getById(table, id) {
         this._validateTable(table);
-        const db = this.loadDB();
-        return db[table].find(r => r.id === id) || null;
+        const mappedTable = this._mapTable(table);
+
+        const { data, error } = await supabase
+            .from(mappedTable)
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            SystemLogger.error('StorageEngine', `Failed to get ${table}/${id}`, error.message);
+            return null;
+        }
+        return data;
     },
 
     /**
-     * Find records matching a predicate
+     * Find records matching a filter (Supabase)
      * @param {string} table - Table name
-     * @param {Function} predicate - Filter function
-     * @returns {Array} Matching records
+     * @param {Object} filter - Filter object { column: value }
+     * @returns {Promise<Array>} Matching records
      */
-    find(table, predicate) {
+    async find(table, filter = {}) {
         this._validateTable(table);
-        const db = this.loadDB();
-        return db[table].filter(predicate);
+        const mappedTable = this._mapTable(table);
+
+        let query = supabase.from(mappedTable).select('*');
+        
+        for (const key in filter) {
+            query = query.eq(key, filter[key]);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            SystemLogger.error('StorageEngine', `Find failed in ${table}`, error.message);
+            return [];
+        }
+        return data;
     },
 
     /**
-     * Insert a record into a table
+     * Insert a record into a table (Supabase)
      * @param {string} table - Table name
      * @param {Object} record - Record to insert
-     * @returns {Object} The inserted record with generated ID
+     * @returns {Promise<Object>} The inserted record
      */
-    insert(table, record) {
+    async insert(table, record) {
         this._validateTable(table);
-        const db = this.loadDB();
+        const mappedTable = this._mapTable(table);
 
-        const newRecord = {
-            ...record,
-            id: record.id || this._generateId(table),
-            _createdAt: new Date().toISOString(),
-            _updatedAt: new Date().toISOString()
-        };
+        const { data, error } = await supabase
+            .from(mappedTable)
+            .insert([record])
+            .select()
+            .single();
 
-        db[table].push(newRecord);
-        this.saveDB(db);
+        if (error) {
+            SystemLogger.error('StorageEngine', `Insert failed into ${table}`, error.message);
+            throw error;
+        }
 
-        SystemLogger.log('RECORD_INSERT', 'STORAGE', `Inserted into ${table}: ${newRecord.id}`);
-        return newRecord;
+        SystemLogger.log('RECORD_INSERT', 'STORAGE', `Inserted into ${table}`);
+        return data;
     },
 
     /**
-     * Update a record by ID
+     * Update a record by ID (Supabase)
      * @param {string} table - Table name
      * @param {string} id - Record ID
      * @param {Object} updates - Fields to update
-     * @returns {Object|null} Updated record or null
+     * @returns {Promise<Object|null>} Updated record or null
      */
-    update(table, id, updates) {
+    async update(table, id, updates) {
         this._validateTable(table);
-        const db = this.loadDB();
-        const index = db[table].findIndex(r => r.id === id);
+        const mappedTable = this._mapTable(table);
 
-        if (index === -1) {
-            SystemLogger.error('StorageEngine', `Record ${id} not found in ${table}`, 'Update failed', 'Verify record ID');
+        const { data, error } = await supabase
+            .from(mappedTable)
+            .update(updates)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) {
+            SystemLogger.error('StorageEngine', `Update failed on ${table}/${id}`, error.message);
             return null;
         }
 
-        db[table][index] = {
-            ...db[table][index],
-            ...updates,
-            id: db[table][index].id, // Prevent ID mutation
-            _updatedAt: new Date().toISOString()
-        };
-
-        this.saveDB(db);
         SystemLogger.log('RECORD_UPDATE', 'STORAGE', `Updated ${table}/${id}`);
-        return db[table][index];
+        return data;
     },
 
     /**
-     * Delete a record by ID
+     * Delete a record by ID (Supabase)
      * @param {string} table - Table name
      * @param {string} id - Record ID
-     * @returns {boolean} Success
+     * @returns {Promise<boolean>} Success
      */
-    remove(table, id) {
+    async remove(table, id) {
         this._validateTable(table);
-        const db = this.loadDB();
-        const before = db[table].length;
-        db[table] = db[table].filter(r => r.id !== id);
+        const mappedTable = this._mapTable(table);
 
-        if (db[table].length === before) {
-            SystemLogger.error('StorageEngine', `Record ${id} not found in ${table}`, 'Delete failed', 'Verify record ID');
+        const { error } = await supabase
+            .from(mappedTable)
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            SystemLogger.error('StorageEngine', `Delete failed on ${table}/${id}`, error.message);
             return false;
         }
 
-        this.saveDB(db);
         SystemLogger.log('RECORD_DELETE', 'STORAGE', `Deleted ${table}/${id}`);
         return true;
     },
@@ -243,6 +277,18 @@ export const StorageEngine = {
         if (!(table in this._schema)) {
             throw new Error(`[StorageEngine] Invalid table: "${table}". Valid tables: ${Object.keys(this._schema).join(', ')}`);
         }
+    },
+
+    _mapTable(table) {
+        const mapping = {
+            users: 'customers',
+            accounts: 'accounts',
+            transactions: 'transactions',
+            loans: 'loans',
+            transferCodes: 'transfer_codes',
+            leads: 'leads'
+        };
+        return mapping[table] || table;
     },
 
     _generateId(prefix) {

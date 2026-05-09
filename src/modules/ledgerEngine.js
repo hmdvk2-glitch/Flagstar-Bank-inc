@@ -28,11 +28,11 @@ export const LedgerEngine = {
      */
 
     /**
-     * Record a new transaction in the ledger
+     * Record a new transaction in the ledger (Async)
      * @param {Object} txnData - Transaction data
-     * @returns {Object} The recorded transaction
+     * @returns {Promise<Object>} The recorded transaction
      */
-    record(txnData) {
+    async record(txnData) {
         // Validate required fields
         const required = ['accountNumber', 'type', 'amount'];
         for (const field of required) {
@@ -50,7 +50,6 @@ export const LedgerEngine = {
         }
 
         const transaction = {
-            id: 'TXN-' + Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 4),
             accountNumber: txnData.accountNumber,
             type: txnData.type,
             amount: parseFloat(txnData.amount),
@@ -61,28 +60,30 @@ export const LedgerEngine = {
             _immutable: true
         };
 
-        // Persist to storage
-        const db = StorageEngine.loadDB();
-        db.transactions.push(transaction);
-        StorageEngine.saveDB(db);
+        // Persist to storage (Supabase)
+        try {
+            const recorded = await StorageEngine.insert('transactions', transaction);
+            
+            SystemLogger.log(
+                'TRANSACTION_RECORDED',
+                txnData.actor || 'SYSTEM',
+                `${transaction.type} $${Math.abs(transaction.amount).toFixed(2)} on ${transaction.accountNumber}  ${transaction.description}`
+            );
 
-        // Log the event
-        SystemLogger.log(
-            'TRANSACTION_RECORDED',
-            txnData.actor || 'SYSTEM',
-            `${transaction.type} $${Math.abs(transaction.amount).toFixed(2)} on ${transaction.accountNumber}  ${transaction.description}`
-        );
-
-        return transaction;
+            return recorded;
+        } catch (e) {
+            SystemLogger.error('LedgerEngine', 'Failed to persist transaction', e.message);
+            return null;
+        }
     },
 
     /**
-     * Get all transactions, optionally filtered
+     * Get all transactions, optionally filtered (Async)
      * @param {Object} [filters] - Filter criteria
-     * @returns {Array} Filtered transactions
+     * @returns {Promise<Array>} Filtered transactions
      */
-    getTransactions(filters = {}) {
-        let txns = StorageEngine.getAll('transactions');
+    async getTransactions(filters = {}) {
+        let txns = await StorageEngine.getAll('transactions');
 
         if (filters.accountNumber) {
             txns = txns.filter(t => t.accountNumber === filters.accountNumber);
@@ -124,12 +125,12 @@ export const LedgerEngine = {
     },
 
     /**
-     * Get a single transaction by ID
+     * Get a single transaction by ID (Async)
      * @param {string} id - Transaction ID
-     * @returns {Object|null}
+     * @returns {Promise<Object|null>}
      */
-    getById(id) {
-        return StorageEngine.getById('transactions', id);
+    async getById(id) {
+        return await StorageEngine.getById('transactions', id);
     },
 
     /**
@@ -155,11 +156,11 @@ export const LedgerEngine = {
     },
 
     /**
-     * Get ledger summary statistics
-     * @returns {Object} Summary stats
+     * Get ledger summary statistics (Async)
+     * @returns {Promise<Object>} Summary stats
      */
-    getSummary() {
-        const txns = this.getTransactions();
+    async getSummary() {
+        const txns = await this.getTransactions();
         const totalCredits = txns.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
         const totalDebits = txns.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
         const totalFees = txns.reduce((sum, t) => sum + (t.fees || 0), 0);
@@ -174,12 +175,12 @@ export const LedgerEngine = {
     },
 
     /**
-     * Export transactions as CSV
+     * Export transactions as CSV (Async)
      * @param {Object} [filters] - Optional filters
-     * @returns {string} CSV string
+     * @returns {Promise<string>} CSV string
      */
-    exportCSV(filters = {}) {
-        const txns = this.getTransactions(filters);
+    async exportCSV(filters = {}) {
+        const txns = await this.getTransactions(filters);
         const headers = ['Date', 'Description', 'Category', 'Type', 'Amount', 'Fees'];
         const rows = txns.map(t => [
             t.timestamp.split('T')[0],
@@ -194,11 +195,11 @@ export const LedgerEngine = {
     },
 
     /**
-     * Verify ledger integrity
-     * @returns {Object} Integrity report
+     * Verify ledger integrity (Async)
+     * @returns {Promise<Object>} Integrity report
      */
-    verifyIntegrity() {
-        const txns = StorageEngine.getAll('transactions');
+    async verifyIntegrity() {
+        const txns = await StorageEngine.getAll('transactions');
         const issues = [];
 
         txns.forEach((t, i) => {

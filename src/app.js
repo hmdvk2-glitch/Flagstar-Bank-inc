@@ -13,7 +13,7 @@ const AuthState = {
     user: null,
     role: 'guest',
 
-    init() {
+    async init() {
         const session = StorageEngine.getSession();
         if (session) {
             this.isLoggedIn = true;
@@ -72,12 +72,12 @@ const Router = {
         window.addEventListener('load', () => this.handleRoute());
     },
 
-    handleRoute() {
+    async handleRoute() {
         const hash = window.location.hash.slice(1) || '/';
         const path = hash.split('?')[0];
 
         // Sync auth state
-        AuthState.init();
+        await AuthState.init();
 
         // Resolve state from route
         const state = StateMachine.resolveRoute(path);
@@ -151,7 +151,7 @@ const App = {
         this.applyFilters();
     },
 
-    applyFilters() {
+    async applyFilters() {
         const searchEl = document.getElementById('txn-search');
         const catEl = document.getElementById('txn-filter-cat');
         if (!searchEl || !catEl) return;
@@ -159,7 +159,7 @@ const App = {
         const search = searchEl.value.toLowerCase();
         const cat = catEl.value;
 
-        const txns = LedgerEngine.getTransactions({
+        const txns = await LedgerEngine.getTransactions({
             search: search || undefined,
             category: cat !== 'all' ? cat : undefined,
             sortKey: this.currentSort.key,
@@ -201,78 +201,82 @@ const App = {
     },
 
     // --- Transfer Funnel ---
-    handleTransferComplete() {
-        const cotInput = document.getElementById('cot-code');
-        if (!cotInput) return;
-
-        const code = cotInput.value.trim();
+    async handleTransferComplete() {
+        const transferData = StateMachine.getFunnelData('transfer');
+        const amount = transferData.amount || 0;
         const session = StorageEngine.getSession();
-        const accountId = session ? session.id : '';
+        
+        const authResult = SecurityEngine.authorizeTransfer(amount);
 
-        const result = SecurityEngine.validateCOT(code, accountId);
+        if (authResult.authorized) {
+            // Record the transaction in the ledger
+            await LedgerEngine.record({
+                accountNumber: transferData.fromAccount || '1234',
+                type: 'transfer',
+                amount: -(amount),
+                fees: transferData.fees || 0,
+                description: transferData.description || 'Wire Transfer',
+                category: 'Transfer',
+                actor: session ? session.name : 'USER'
+            });
 
+            UIEngine.toast('Transfer authorized and completed!', 'success');
+            Router.navigate('/transfer/step4');
+        } else {
+            // Logic handled by individual verification steps
+            UIEngine.toast(authResult.reason, 'warning');
+            if (authResult.nextStep === 'COT') Router.navigate('/transfer/step3');
+            if (authResult.nextStep === 'TAX') Router.navigate('/transfer/verify-tax');
+            if (authResult.nextStep === 'IRS') Router.navigate('/transfer/verify-irs');
+        }
+    },
+
+    async handleCOTVerification(e) {
+        if (e) e.preventDefault();
+        const codeInput = document.getElementById('cot-code');
+        if (!codeInput) return;
+        
+        const code = codeInput.value.trim();
+        const session = StorageEngine.getSession();
+        const result = await SecurityEngine.validateCOT(code, session ? session.accountId : null);
+        
         if (result.valid) {
-            // Check transfer amount to determine if TAX/IRS needed
-            const transferData = StateMachine.getFunnelData('transfer');
-            const amount = transferData.amount || 0;
-            const authResult = SecurityEngine.authorizeTransfer(amount);
-
-            if (authResult.authorized) {
-                // Record the transaction in the ledger
-                LedgerEngine.record({
-                    accountNumber: transferData.fromAccount || '1234',
-                    type: 'transfer',
-                    amount: -(amount),
-                    fees: transferData.fees || 0,
-                    description: transferData.description || 'Wire Transfer',
-                    category: 'Transfer',
-                    actor: session ? session.name : 'USER'
-                });
-
-                UIEngine.toast('Transfer authorized and completed!', 'success');
-                Router.navigate('/transfer/step4');
-            } else if (authResult.nextStep === 'TAX') {
-                UIEngine.toast('TAX verification required for this amount.', 'warning');
-                Router.navigate('/transfer/verify-tax');
-            } else if (authResult.nextStep === 'IRS') {
-                UIEngine.toast('IRS verification required for this amount.', 'warning');
-                Router.navigate('/transfer/verify-irs');
-            }
+            UIEngine.toast('COT Verified Successfully', 'success');
+            await this.handleTransferComplete();
         } else {
             UIEngine.toast(result.reason, 'error');
         }
     },
 
-    handleTaxVerification() {
-        const taxInput = document.getElementById('tax-code');
-        if (!taxInput) return;
+    async handleTaxVerification(e) {
+        if (e) e.preventDefault();
+        const codeInput = document.getElementById('tax-code');
+        if (!codeInput) return;
 
-        const code = taxInput.value.trim();
+        const code = codeInput.value.trim();
         const session = StorageEngine.getSession();
-        const result = SecurityEngine.validateTAX(code, session ? session.id : '');
-
+        const result = await SecurityEngine.validateTAX(code, session ? session.accountId : null);
+        
         if (result.valid) {
-            const transferData = StateMachine.getFunnelData('transfer');
-            const amount = transferData.amount || 0;
-            const authResult = SecurityEngine.authorizeTransfer(amount);
+            UIEngine.toast('TAX Verified Successfully', 'success');
+            await this.handleTransferComplete();
+        } else {
+            UIEngine.toast(result.reason, 'error');
+        }
+    },
 
-            if (authResult.authorized) {
-                LedgerEngine.record({
-                    accountNumber: transferData.fromAccount || '1234',
-                    type: 'transfer',
-                    amount: -(amount),
-                    fees: transferData.fees || 0,
-                    description: transferData.description || 'Wire Transfer',
-                    category: 'Transfer',
-                    actor: session ? session.name : 'USER'
-                });
+    async handleIrsVerification(e) {
+        if (e) e.preventDefault();
+        const codeInput = document.getElementById('irs-code');
+        if (!codeInput) return;
 
-                UIEngine.toast('Transfer completed!', 'success');
-                Router.navigate('/transfer/step4');
-            } else if (authResult.nextStep === 'IRS') {
-                UIEngine.toast('IRS verification required.', 'warning');
-                Router.navigate('/transfer/verify-irs');
-            }
+        const code = codeInput.value.trim();
+        const session = StorageEngine.getSession();
+        const result = await SecurityEngine.validateIRS(code, session ? session.accountId : null);
+        
+        if (result.valid) {
+            UIEngine.toast('IRS Verified Successfully', 'success');
+            await this.handleTransferComplete();
         } else {
             UIEngine.toast(result.reason, 'error');
         }
@@ -307,15 +311,39 @@ const App = {
     },
 
     // --- Admin Methods ---
-    handleAdminAccountCreation(e) {
+    async handleAdminAccountCreation(e) {
         if (e) e.preventDefault();
+
+        const name = e.target.querySelector('input[type="text"]').value;
+        const email = e.target.querySelector('input[type="email"]').value;
+        const initialDeposit = parseFloat(e.target.querySelector('input[type="number"]').value) || 0;
 
         const loader = UIEngine.createLoader('admin-account-loader', {
             duration: 3000,
             message: 'Initializing secure vault and generating transfer codes...',
             completeMessage: 'Account created successfully! Credentials sent to customer.',
-            onComplete: () => {
-                SystemLogger.log('ADMIN_ACTION', 'ADMIN', 'New customer account created.');
+            onComplete: async () => {
+                // 1. Create User
+                const user = await StorageEngine.insert('users', {
+                    name,
+                    email,
+                    role: 'customer',
+                    status: 'active'
+                });
+
+                // 2. Create Account
+                const accountId = 'FLAG-' + Math.floor(Math.random() * 100000);
+                await StorageEngine.insert('accounts', {
+                    userId: user.id,
+                    accountId: accountId,
+                    balance: initialDeposit,
+                    type: 'Checking'
+                });
+
+                // 3. Generate Codes
+                await SecurityEngine.generateCodeSet(accountId, name);
+
+                SystemLogger.log('ADMIN_ACTION', 'ADMIN', `New customer account created: ${email}`);
                 UIEngine.toast('Account created successfully!', 'success');
                 setTimeout(() => Router.navigate('/admin'), 2000);
             }
@@ -356,8 +384,8 @@ const App = {
         URL.revokeObjectURL(url);
     },
 
-    downloadStatement() {
-        const csv = LedgerEngine.exportCSV();
+    async downloadStatement() {
+        const csv = await LedgerEngine.exportCSV();
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -612,8 +640,8 @@ function attachEventsForState(state) {
             if (el) el.style.display = 'block';
             SystemLogger.log('LOAN_DECISION', 'SYSTEM', 'Loan APPROVED.');
 
-            // Record loan
-            StorageEngine.insert('loans', {
+            // Record loan (Async)
+            await StorageEngine.insert('loans', {
                 userId: StorageEngine.getSession() ? StorageEngine.getSession().id : 'UNKNOWN',
                 type: loanData.type || 'personal',
                 amount: loanData.amount || 25000,
@@ -652,7 +680,7 @@ function attachEventsForState(state) {
 // ================================================================
 // BOOTSTRAP  Initialize all modules in correct order
 // ================================================================
-(function boot() {
+(async function boot() {
     // Phase 1: Core engines
     SystemLogger.init();
     StorageEngine.init();
@@ -672,7 +700,7 @@ function attachEventsForState(state) {
     Router.init();
 
     // Phase 5: Verification
-    const integrity = LedgerEngine.verifyIntegrity();
+    const integrity = await LedgerEngine.verifyIntegrity();
     SystemLogger.log('BOOT_COMPLETE', 'SYSTEM',
         `Flagstar Bank v7.0 booted. Ledger: ${integrity.status} (${integrity.totalRecords} records). ` +
         `Storage: OK. Security: ${SecurityEngine.getVerificationStatus().allVerified ? 'UNLOCKED' : 'LOCKED'}.`

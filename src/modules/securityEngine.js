@@ -31,21 +31,18 @@ export const SecurityEngine = {
     // ================================================================
 
     /**
-     * Validate a COT (Certificate of Transfer) code
+     * Validate a COT (Certificate of Transfer) code (Async)
      * @param {string} code - User-entered COT code
      * @param {string} accountId - Account to validate against
-     * @returns {Object} Validation result
+     * @returns {Promise<Object>} Validation result
      */
-    validateCOT(code, accountId) {
+    async validateCOT(code, accountId) {
         if (!code || code.trim() === '') {
             SystemLogger.log('COT_VALIDATION', 'SECURITY', 'COT validation failed: empty code', 'WARN');
             return { valid: false, reason: 'COT code is required.' };
         }
 
-        // Look up the code in storage
-        const codes = StorageEngine.find('transferCodes', c =>
-            c.cotCode === code && (c.accountId === accountId || !accountId) && c.status === 'active'
-        );
+        const codes = await StorageEngine.find('transferCodes', { cotCode: code, status: 'active' });
 
         if (codes.length > 0) {
             this._verificationState.cotVerified = true;
@@ -62,20 +59,18 @@ export const SecurityEngine = {
     // ================================================================
 
     /**
-     * Validate a TAX code
+     * Validate a TAX code (Async)
      * @param {string} code - User-entered TAX code
      * @param {string} accountId - Account to validate against
-     * @returns {Object} Validation result
+     * @returns {Promise<Object>} Validation result
      */
-    validateTAX(code, accountId) {
+    async validateTAX(code, accountId) {
         if (!code || code.trim() === '') {
             SystemLogger.log('TAX_VALIDATION', 'SECURITY', 'TAX validation failed: empty code', 'WARN');
             return { valid: false, reason: 'TAX code is required.' };
         }
 
-        const codes = StorageEngine.find('transferCodes', c =>
-            c.taxCode === code && (c.accountId === accountId || !accountId) && c.status === 'active'
-        );
+        const codes = await StorageEngine.find('transferCodes', { taxCode: code, status: 'active' });
 
         if (codes.length > 0) {
             this._verificationState.taxVerified = true;
@@ -92,20 +87,18 @@ export const SecurityEngine = {
     // ================================================================
 
     /**
-     * Validate an IRS code
+     * Validate an IRS code (Async)
      * @param {string} code - User-entered IRS code
      * @param {string} accountId - Account to validate against
-     * @returns {Object} Validation result
+     * @returns {Promise<Object>} Validation result
      */
-    validateIRS(code, accountId) {
+    async validateIRS(code, accountId) {
         if (!code || code.trim() === '') {
             SystemLogger.log('IRS_VALIDATION', 'SECURITY', 'IRS validation failed: empty code', 'WARN');
             return { valid: false, reason: 'IRS code is required.' };
         }
 
-        const codes = StorageEngine.find('transferCodes', c =>
-            c.irsCode === code && (c.accountId === accountId || !accountId) && c.status === 'active'
-        );
+        const codes = await StorageEngine.find('transferCodes', { irsCode: code, status: 'active' });
 
         if (codes.length > 0) {
             this._verificationState.irsVerified = true;
@@ -210,7 +203,7 @@ export const SecurityEngine = {
     },
 
     /**
-     * Verify user credentials via Supabase Auth
+     * Verify user credentials via Supabase Auth (Async)
      * @param {string} email - User email
      * @param {string} pass - Password
      * @returns {Promise<Object|null>} User profile or null
@@ -219,8 +212,17 @@ export const SecurityEngine = {
         SystemLogger.log('AUTH_ATTEMPT', 'SECURITY', `Login attempt for ${email}`);
         
         try {
-            // This will be connected to supabase.auth.signInWithPassword in the next phase
-            // For now, it remains a secure bridge placeholder
+            // First, try to find the user in the 'customers' table (simulation)
+            const users = await StorageEngine.find('users', { email: email });
+            
+            if (users.length > 0) {
+                // Simulation: Any password works for the seeded user for now
+                // In Phase 9, we would use supabase.auth.signInWithPassword
+                SystemLogger.log('AUTH_SUCCESS', 'SECURITY', `Authenticated ${email}`);
+                return users[0];
+            }
+            
+            SystemLogger.log('AUTH_FAILED', 'SECURITY', `User not found: ${email}`, 'WARN');
             return null; 
         } catch (error) {
             SystemLogger.log('AUTH_ERROR', 'SECURITY', error.message, 'ERROR');
@@ -273,26 +275,24 @@ export const SecurityEngine = {
     },
 
     /**
-     * Generate a complete code set for an account
+     * Generate a complete code set for an account (Async)
      * @param {string} accountId - Account ID
      * @param {string} customer - Customer name
-     * @returns {Object} Generated code set
+     * @returns {Promise<Object>} Generated code set
      */
-    generateCodeSet(accountId, customer) {
+    async generateCodeSet(accountId, customer) {
         const codeSet = {
-            id: 'CODE-' + Date.now().toString(36),
             accountId,
             customer,
             cotCode: this.generateCode('COT'),
             taxCode: this.generateCode('TAX'),
             irsCode: this.generateCode('IRS'),
-            status: 'active',
-            _createdAt: new Date().toISOString()
+            status: 'active'
         };
 
-        StorageEngine.insert('transferCodes', codeSet);
+        const recorded = await StorageEngine.insert('transferCodes', codeSet);
 
         SystemLogger.log('CODE_GENERATED', 'SECURITY', `Code set generated for ${customer} (${accountId})`);
-        return codeSet;
+        return recorded;
     }
 };
