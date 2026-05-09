@@ -281,9 +281,9 @@ export const StorageEngine = {
 
     _mapTable(table) {
         const mapping = {
-            users: 'customers',
+            users: 'users',
             accounts: 'accounts',
-            transactions: 'transactions',
+            transactions: 'ledger',
             loans: 'loans',
             transferCodes: 'transfer_codes',
             leads: 'leads'

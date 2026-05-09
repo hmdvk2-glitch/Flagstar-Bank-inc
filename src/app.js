@@ -402,7 +402,7 @@ const App = {
 // ================================================================
 // EVENT WIRING  Attach events after each state transition
 // ================================================================
-function attachEventsForState(state) {
+async function attachEventsForState(state) {
     UIEngine._closeMobileNav();
 
     if (state === 'PUBLIC_LOGIN') {
