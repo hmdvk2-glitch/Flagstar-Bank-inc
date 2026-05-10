@@ -61,3 +61,19 @@ CREATE POLICY "Users can view own data" ON customers FOR SELECT USING (auth.uid(
 CREATE POLICY "Users can view own accounts" ON accounts FOR SELECT USING (customer_id = auth.uid());
 CREATE POLICY "Users can view own transactions" ON transactions FOR SELECT 
   USING (account_id IN (SELECT id FROM accounts WHERE customer_id = auth.uid()));
+
+-- 7. ADMIN CODES TABLE (Core Admin Fix)
+CREATE TABLE admin_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id TEXT,
+  transaction_id TEXT,
+  cot_code TEXT,
+  tax_code TEXT,
+  irs_code TEXT,
+  created_by TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE admin_codes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can do everything" ON admin_codes FOR ALL USING (true);
+
