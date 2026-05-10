@@ -77,3 +77,44 @@ CREATE TABLE admin_codes (
 ALTER TABLE admin_codes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Admins can do everything" ON admin_codes FOR ALL USING (true);
 
+
+-- 8. PIN SUPPORT & AUDIT LOGS
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS pin_hash TEXT;
+
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID REFERENCES customers(id),
+  action TEXT NOT NULL,
+  target_id TEXT,
+  details JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can view all logs" ON audit_logs FOR SELECT USING (
+  EXISTS (SELECT 1 FROM customers WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- 9. EVENT SOURCING LEDGER
+CREATE TABLE ledger (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id UUID NOT NULL,
+  type TEXT NOT NULL,
+  payload JSONB,
+  actor TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_ledger_transaction_id ON ledger(transaction_id);
+
+ALTER TABLE ledger ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can view all events" ON ledger FOR SELECT USING (
+  EXISTS (SELECT 1 FROM customers WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Users can view own transaction events" ON ledger FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM transactions t
+    JOIN accounts a ON t.account_id = a.id
+    WHERE t.id = ledger.transaction_id AND a.customer_id = auth.uid()
+  )
+);

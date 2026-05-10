@@ -1,54 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabase/client';
 import { 
   Play, 
-  Pause, 
+  RefreshCcw, 
   FastForward, 
   AlertCircle, 
-  CheckCircle2,
+  Eye,
   Lock,
-  Unlock,
-  Eye
+  History,
+  ShieldCheck
 } from 'lucide-react';
-
-type TransactionStage = 'PENDING' | 'COT VERIFIED' | 'TAX VERIFIED' | 'IRS VERIFIED' | 'COMPLETED' | 'REJECTED';
-
-interface Transaction {
-  id: string;
-  account_id: string;
-  from_account: string;
-  to_account: string;
-  amount: number;
-  type: string;
-  description: string;
-  status: string;
-  stage: TransactionStage;
-  created_at: string;
-}
+import { EventBus } from '../core/events/eventBus';
+import { TransactionProjection } from '../core/projections/transactionProjection';
+import { TransactionState, TransactionStage } from '../core/reducers/transactionReducer';
 
 const TransactionPanel: React.FC = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [projections, setProjections] = useState<TransactionState[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchTransactions = async () => {
+  const fetchAndProject = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
+    // 1. Get all unique transaction IDs from the ledger
+    const { data: ledgerEntries } = await supabase
+      .from('ledger')
+      .select('transaction_id')
       .order('created_at', { ascending: false });
 
-    if (data) setTransactions(data);
+    if (!ledgerEntries) return setLoading(false);
+
+    const uniqueIds = [...new Set(ledgerEntries.map(e => e.transaction_id))];
+    
+    // 2. Build projections for each ID
+    const results = await Promise.all(
+      uniqueIds.map(id => TransactionProjection.build(id))
+    );
+
+    setProjections(results);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchTransactions();
+    fetchAndProject();
     
-    // Subscribe to changes
+    // Listen for new events to trigger re-projection
     const channel = supabase
-      .channel('admin_transactions')
-      .on('postgres_changes', { event: '*', table: 'transactions' }, () => {
-        fetchTransactions();
+      .channel('ledger_changes')
+      .on('postgres_changes', { event: 'INSERT', table: 'ledger' }, () => {
+        fetchAndProject();
       })
       .subscribe();
 
@@ -57,108 +55,105 @@ const TransactionPanel: React.FC = () => {
     };
   }, []);
 
-  const updateStage = async (id: string, newStage: TransactionStage) => {
-    const { error } = await supabase
-      .from('transactions')
-      .update({ 
-        stage: newStage,
-        status: newStage === 'COMPLETED' ? 'APPROVED' : (newStage === 'REJECTED' ? 'REJECTED' : 'PENDING')
-      })
-      .eq('id', id);
+  const emitAdvance = async (transactionId: string, currentStage: TransactionStage) => {
+    const nextStageMap: Record<string, string> = {
+      'PENDING': 'COT_VERIFIED',
+      'COT_VERIFIED': 'TAX_VERIFIED',
+      'TAX_VERIFIED': 'IRS_VERIFIED',
+      'IRS_VERIFIED': 'COMPLETED'
+    };
 
-    if (error) alert('Failed to update stage: ' + error.message);
+    const nextType = nextStageMap[currentStage];
+    if (!nextType) return;
+
+    await EventBus.emit({
+      transactionId,
+      type: nextType as any,
+      timestamp: Date.now(),
+      actor: 'ADMIN'
+    });
   };
 
-  const getStageColor = (stage: TransactionStage) => {
-    switch (stage) {
-      case 'PENDING': return 'text-gray-400 border-gray-400/20 bg-gray-400/10';
-      case 'COT VERIFIED': return 'text-blue-400 border-blue-400/20 bg-blue-400/10';
-      case 'TAX VERIFIED': return 'text-purple-400 border-purple-400/20 bg-purple-400/10';
-      case 'IRS VERIFIED': return 'text-amber-400 border-amber-400/20 bg-amber-400/10';
-      case 'COMPLETED': return 'text-emerald-400 border-emerald-400/20 bg-emerald-400/10';
-      case 'REJECTED': return 'text-red-400 border-red-400/20 bg-red-400/10';
-      default: return 'text-gray-400';
-    }
+  const emitReject = async (transactionId: string) => {
+    await EventBus.emit({
+      transactionId,
+      type: 'REJECTED',
+      timestamp: Date.now(),
+      actor: 'ADMIN'
+    });
   };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-[#161616] p-8 rounded-2xl border border-white/5 shadow-2xl">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-xl font-bold flex items-center gap-2">
-            <RefreshCcw size={20} className="text-red-600" />
-            Active Transaction Orchestration
-          </h3>
-          <button 
-            onClick={fetchTransactions}
-            className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-          >
-            <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
+      <div className="bg-[#111] p-8 rounded-3xl border border-white/5 shadow-2xl">
+        <div className="flex items-center justify-between mb-10">
+          <div>
+            <h3 className="text-xl font-bold flex items-center gap-3">
+              <ShieldCheck size={24} className="text-red-600" />
+              Event-Driven Orchestration
+            </h3>
+            <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">v3.0 Immutable State Derivation</p>
+          </div>
+          <button onClick={fetchAndProject} className={`p-3 bg-white/5 rounded-xl border border-white/5 transition-all ${loading ? 'animate-spin' : ''}`}>
+            <RefreshCcw size={18} />
           </button>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-white/5 text-gray-500 text-xs uppercase tracking-widest">
-                <th className="pb-4 font-semibold">Transaction ID</th>
-                <th className="pb-4 font-semibold">Details</th>
-                <th className="pb-4 font-semibold">Amount</th>
-                <th className="pb-4 font-semibold">Stage</th>
-                <th className="pb-4 font-semibold text-right">Actions</th>
+              <tr className="border-b border-white/5 text-[10px] font-black text-gray-600 uppercase tracking-[0.3em]">
+                <th className="pb-6">Stream ID</th>
+                <th className="pb-6">Current Projection</th>
+                <th className="pb-6">Status</th>
+                <th className="pb-6 text-right">Mutations</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {transactions.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center text-gray-500 text-sm">
-                    No active transactions in simulation buffer.
-                  </td>
-                </tr>
+              {projections.length === 0 ? (
+                <tr><td colSpan={4} className="py-20 text-center text-gray-500 text-sm italic">No event streams detected in ledger.</td></tr>
               ) : (
-                transactions.map((txn) => (
-                  <tr key={txn.id} className="group hover:bg-white/5 transition-colors">
-                    <td className="py-4">
-                      <p className="text-sm font-mono text-gray-400">{txn.id.split('-')[0]}...</p>
-                      <p className="text-[10px] text-gray-600 font-mono mt-1">{new Date(txn.created_at).toLocaleString()}</p>
+                projections.map((state) => (
+                  <tr key={state.id} className="group hover:bg-white/[0.02] transition-all">
+                    <td className="py-6">
+                      <div className="flex items-center gap-3">
+                        <History size={14} className="text-gray-700" />
+                        <span className="text-xs font-mono text-gray-400">{state.id.substring(0, 8)}...</span>
+                      </div>
                     </td>
-                    <td className="py-4">
-                      <p className="text-sm font-medium">{txn.description || 'Wire Transfer'}</p>
-                      <p className="text-xs text-gray-500">{txn.from_account} → {txn.to_account}</p>
-                    </td>
-                    <td className="py-4">
-                      <p className={`text-sm font-bold ${txn.type === 'debit' ? 'text-red-500' : 'text-emerald-500'}`}>
-                        {txn.type === 'debit' ? '-' : '+'}${Math.abs(txn.amount).toLocaleString()}
-                      </p>
-                    </td>
-                    <td className="py-4">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded-full border ${getStageColor(txn.stage)}`}>
-                        {txn.stage}
+                    <td className="py-6">
+                      <span className="px-2 py-1 bg-white/5 text-gray-400 text-[10px] font-black rounded-lg border border-white/10 uppercase">
+                        {state.stage}
                       </span>
                     </td>
-                    <td className="py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {txn.stage !== 'COMPLETED' && (
-                          <button 
-                            onClick={() => {
-                              const stages: TransactionStage[] = ['PENDING', 'COT VERIFIED', 'TAX VERIFIED', 'IRS VERIFIED', 'COMPLETED'];
-                              const next = stages[stages.indexOf(txn.stage) + 1];
-                              if (next) updateStage(txn.id, next);
-                            }}
-                            className="p-2 hover:bg-emerald-500/20 hover:text-emerald-500 rounded-lg transition-colors text-gray-400"
-                            title="Advance Stage"
-                          >
-                            <FastForward size={16} />
-                          </button>
+                    <td className="py-6">
+                      <span className={`text-[10px] font-black tracking-tighter uppercase ${
+                        state.status === 'APPROVED' ? 'text-emerald-500' : (state.status === 'REJECTED' ? 'text-red-500' : 'text-amber-500')
+                      }`}>
+                        {state.status}
+                      </span>
+                    </td>
+                    <td className="py-6 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
+                        {state.status === 'PENDING' && (
+                          <>
+                            <button 
+                              onClick={() => emitAdvance(state.id, state.stage)}
+                              className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-all"
+                              title="Emit Advancement Event"
+                            >
+                              <FastForward size={16} />
+                            </button>
+                            <button 
+                              onClick={() => emitReject(state.id)}
+                              className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-all"
+                              title="Emit Rejection Event"
+                            >
+                              <AlertCircle size={16} />
+                            </button>
+                          </>
                         )}
-                        <button 
-                          onClick={() => updateStage(txn.id, 'REJECTED')}
-                          className="p-2 hover:bg-red-500/20 hover:text-red-500 rounded-lg transition-colors text-gray-400"
-                          title="Reject Transaction"
-                        >
-                          <AlertCircle size={16} />
-                        </button>
-                        <button className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400">
+                        <button className="p-2 bg-white/5 text-gray-400 rounded-lg hover:text-white transition-all">
                           <Eye size={16} />
                         </button>
                       </div>
@@ -171,30 +166,34 @@ const TransactionPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-[#161616] p-6 rounded-2xl border border-white/5 shadow-xl border-l-4 border-amber-500">
-          <h4 className="font-bold flex items-center gap-2 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
+          <h4 className="font-bold flex items-center gap-3 mb-4">
             <Lock size={18} className="text-amber-500" />
-            Override Safety Protocols
+            Authority Bypass
           </h4>
-          <p className="text-sm text-gray-400 mb-4">
-            Force completion of all pending transactions without security code validation. (ADMIN BYPASS)
+          <p className="text-xs text-gray-500 leading-relaxed mb-6">
+            Force-emit a series of 'COMPLETED' events to the global ledger stream. 
+            <span className="text-amber-500/60 block mt-2 font-mono">/!\ DANGER: IRREVERSIBLE_MUTATION</span>
           </p>
-          <button className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 rounded-xl text-sm font-bold transition-all">
-            Execute Global Bypass
+          <button className="w-full py-4 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+            Execute Global Ledger Advancement
           </button>
         </div>
 
-        <div className="bg-[#161616] p-6 rounded-2xl border border-white/5 shadow-xl border-l-4 border-red-500">
-          <h4 className="font-bold flex items-center gap-2 mb-4">
-            <AlertCircle size={18} className="text-red-500" />
-            Freeze Core Ledger
+        <div className="bg-[#111] p-8 rounded-[2rem] border border-white/5 shadow-xl relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1 h-full bg-red-600" />
+          <h4 className="font-bold flex items-center gap-3 mb-4">
+            <AlertCircle size={18} className="text-red-600" />
+            Ledger Freeze
           </h4>
-          <p className="text-sm text-gray-400 mb-4">
-            Immediately halt all transaction processing across the entire Flagstar network.
+          <p className="text-xs text-gray-500 leading-relaxed mb-6">
+            Immediately block all 'append' operations to the event store. 
+            Halts all global financial transactions.
           </p>
-          <button className="w-full py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 rounded-xl text-sm font-bold transition-all">
-            Initiate Emergency Freeze
+          <button className="w-full py-4 bg-red-600/10 hover:bg-red-600/20 text-red-600 border border-red-600/20 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">
+            Initiate Protocol Lockdown
           </button>
         </div>
       </div>
