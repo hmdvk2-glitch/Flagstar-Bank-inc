@@ -1,38 +1,17 @@
-export interface BalanceCheck {
-  isAllowed: boolean;
-  remainingBalance: number;
-  error?: string;
-}
-
 export const BankingEngine = {
   /**
-   * Validate if a withdrawal/transfer is allowed
+   * Simple balance validation for simulation
    */
-  validateTransaction(currentBalance: number, amount: number, minBalance: number = 0): BalanceCheck {
-    if (amount <= 0) {
-      return { isAllowed: false, remainingBalance: currentBalance, error: 'INVALID_AMOUNT' };
-    }
-
-    const projectedBalance = currentBalance - amount;
-    
-    if (projectedBalance < minBalance) {
-      return { 
-        isAllowed: false, 
-        remainingBalance: currentBalance, 
-        error: 'INSUFFICIENT_FUNDS' 
-      };
-    }
-
-    return { 
-      isAllowed: true, 
-      remainingBalance: projectedBalance 
-    };
+  validateTransfer(currentBalance: number, amount: number): { allowed: boolean; error?: string } {
+    if (amount <= 0) return { allowed: false, error: 'INVALID_AMOUNT' };
+    if (amount > currentBalance) return { allowed: false, error: 'INSUFFICIENT_FUNDS' };
+    return { allowed: true };
   },
 
   /**
-   * Calculate interest (simulation placeholder)
+   * Generate a random account number
    */
-  calculateInterest(balance: number, rate: number): number {
-    return balance * (rate / 100);
+  generateAccountNumber(): string {
+    return 'FS-' + Math.floor(100000 + Math.random() * 900000);
   }
 };

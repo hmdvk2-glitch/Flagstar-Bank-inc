@@ -1,5 +1,5 @@
 import React from 'react';
-import { History, Download, Filter, Search, FileText, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Download, FileText, ArrowUpRight, ArrowDownLeft, Shield } from 'lucide-react';
 
 interface StatementViewProps {
   transactions: any[];
@@ -7,87 +7,74 @@ interface StatementViewProps {
 
 const StatementView: React.FC<StatementViewProps> = ({ transactions }) => {
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="bg-[#111] p-10 rounded-[3rem] border border-white/5 shadow-2xl">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
-          <div className="flex items-center gap-5">
-            <div className="bg-red-600/10 p-4 rounded-3xl">
-              <FileText size={32} className="text-red-600" />
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold">Transaction Ledger</h3>
-              <p className="text-[10px] text-gray-500 uppercase tracking-[0.3em] font-black mt-1">Immutable Verification Trail</p>
-            </div>
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div>
+          <h2 className="text-3xl font-black tracking-tighter uppercase">Audit Log</h2>
+          <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest font-medium">Verified Historical Ledger Records</p>
+        </div>
+        <button className="flex items-center gap-3 bg-white text-black px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-gray-200 transition-all shadow-xl shadow-white/5">
+          <Download size={16} />
+          Generate Certified Statement
+        </button>
+      </div>
+
+      <div className="bg-[#111] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
+        <div className="p-8 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+          <div className="flex items-center gap-4 text-gray-500">
+            <FileText size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Master Transaction Registry</span>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-3.5 text-gray-700" size={18} />
-              <input
-                type="text"
-                placeholder="Search ledger..."
-                className="bg-black/40 border border-white/5 rounded-2xl py-3.5 pl-12 pr-6 text-sm focus:border-red-600 outline-none w-72 transition-all placeholder:text-gray-800"
-              />
-            </div>
-            <button className="p-3.5 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 transition-all text-gray-400 hover:text-white">
-              <Download size={22} />
-            </button>
+          <div className="flex items-center gap-2">
+            <Shield size={14} className="text-red-600" />
+            <span className="text-[9px] font-black text-red-600 uppercase tracking-tighter">Encrypted Audit Trail</span>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full">
             <thead>
-              <tr className="border-b border-white/5 text-[10px] font-black text-gray-700 uppercase tracking-[0.4em]">
-                <th className="pb-8">Timestamp</th>
-                <th className="pb-8">Description</th>
-                <th className="pb-8">Category</th>
-                <th className="pb-8 text-right">Amount</th>
-                <th className="pb-8 text-center">Status</th>
+              <tr className="bg-black/20 border-b border-white/5">
+                <th className="px-8 py-6 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Reference ID</th>
+                <th className="px-8 py-6 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Narration / Description</th>
+                <th className="px-8 py-6 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Execution Date</th>
+                <th className="px-8 py-6 text-right text-[10px] font-black text-gray-600 uppercase tracking-widest">Flow Magnitude</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-24 text-center text-gray-600 font-mono text-xs uppercase tracking-widest">
-                    No ledger entries found in current epoch.
+                  <td colSpan={4} className="px-8 py-20 text-center text-gray-700 uppercase font-black tracking-widest text-sm">
+                    No matching records discovered in vault core
                   </td>
                 </tr>
               ) : (
                 transactions.map((txn) => (
-                  <tr key={txn.id} className="group hover:bg-white/[0.01] transition-all">
-                    <td className="py-8">
+                  <tr key={txn.id} className="hover:bg-white/[0.02] transition-colors group">
+                    <td className="px-8 py-8 font-mono text-[10px] text-gray-500 group-hover:text-red-500 transition-colors">
+                      {txn.id.substring(0, 13).toUpperCase()}
+                    </td>
+                    <td className="px-8 py-8">
                       <div className="flex items-center gap-4">
-                        <div className={`h-1.5 w-1.5 rounded-full ${txn.type === 'credit' ? 'bg-emerald-500' : 'bg-red-600'}`} />
-                        <span className="text-xs font-mono text-gray-500">
-                          {new Date(txn.created_at).toLocaleString()}
-                        </span>
+                        <div className={`p-2 rounded-lg ${txn.type === 'credit' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                          {txn.type === 'credit' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                        </div>
+                        <span className="font-bold text-sm text-gray-300">{txn.narration || 'General Ledger Entry'}</span>
                       </div>
                     </td>
-                    <td className="py-8">
-                      <p className="text-sm font-bold tracking-tight">{txn.description || 'Global Network Settlement'}</p>
-                      <p className="text-[10px] text-gray-600 font-mono mt-1 uppercase">Ref: {txn.id.split('-')[0]}...</p>
+                    <td className="px-8 py-8 text-sm text-gray-500 font-medium">
+                      {new Date(txn.created_at).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </td>
-                    <td className="py-8">
-                      <span className="text-[10px] bg-white/5 px-3 py-1 rounded-full text-gray-400 font-bold uppercase tracking-tighter">
-                        {txn.category || 'Transfer'}
-                      </span>
-                    </td>
-                    <td className="py-8 text-right">
-                      <p className={`font-mono font-bold text-lg tracking-tighter ${
-                        txn.type === 'credit' ? 'text-emerald-500' : 'text-white'
-                      }`}>
-                        {txn.type === 'credit' ? '+' : '-'}${Math.abs(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
-                    </td>
-                    <td className="py-8">
-                      <div className="flex flex-col items-center">
-                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border tracking-tighter uppercase ${
-                          txn.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                        }`}>
-                          {txn.status}
-                        </span>
-                      </div>
+                    <td className={`px-8 py-8 text-right font-black text-lg tracking-tighter ${
+                      txn.type === 'credit' ? 'text-emerald-500' : 'text-white'
+                    }`}>
+                      {txn.type === 'credit' ? '+' : '-'}${Number(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 ))

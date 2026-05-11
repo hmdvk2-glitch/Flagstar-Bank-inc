@@ -1,170 +1,392 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, 
-  RefreshCcw, 
-  Key, 
-  Database, 
-  Shield, 
+  DollarSign, 
+  ShieldCheck, 
   LogOut,
-  ChevronRight,
-  LayoutDashboard,
-  ShieldCheck,
-  History
+  Plus,
+  ArrowRightLeft,
+  Shield,
+  Search,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
-
 import AdminShield from './AdminShield';
-import CreateCustomerForm from './CreateCustomerForm';
-import TransactionPanel from './TransactionPanel';
-import CodeGenerator from './CodeGenerator';
-import AuditViewer from './AuditViewer';
 import { Queries } from '../supabase/queries';
-
-type AdminModule = 'DASHBOARD' | 'ACCOUNTS' | 'TRANSACTIONS' | 'CODES' | 'AUDIT';
+import { Mutations } from '../supabase/mutations';
 
 const AdminDashboard: React.FC = () => {
-  const [activeModule, setActiveModule] = useState<AdminModule>('DASHBOARD');
-  const [systemStatus, setSystemStatus] = useState('SYNCING');
+  const [activeTab, setActiveTab] = useState<'USERS' | 'TRANSACTIONS' | 'RESTRICTIONS'>('USERS');
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadData = async () => {
+    setLoading(true);
+    const { data } = await Queries.getAccounts();
+    if (data) setCustomers(data);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    // Simulation of system check
-    const timer = setTimeout(() => setSystemStatus('DETERMINISTIC_LOCKED'), 1000);
-    return () => clearTimeout(timer);
+    loadData();
   }, []);
 
-  const navItems = [
-    { id: 'DASHBOARD', label: 'Overview', icon: <LayoutDashboard size={20} /> },
-    { id: 'ACCOUNTS', label: 'Provisioning', icon: <Users size={20} /> },
-    { id: 'TRANSACTIONS', label: 'Orchestration', icon: <RefreshCcw size={20} /> },
-    { id: 'CODES', label: 'Security Buffer', icon: <Key size={20} /> },
-    { id: 'AUDIT', label: 'Immutable Audit', icon: <History size={20} /> },
-  ];
+  const handleLogout = () => {
+    localStorage.removeItem('bank_user');
+    window.location.reload();
+  };
 
   return (
     <AdminShield>
-      <div className="flex h-screen bg-[#0a0a0a] text-white overflow-hidden">
+      <div className="flex flex-col md:flex-row min-h-screen bg-[#0a0a0a] text-white">
         {/* Sidebar */}
-        <aside className="w-64 bg-[#111] border-r border-white/10 flex flex-col">
-          <div className="p-6 border-b border-white/10 flex items-center gap-3">
-            <Shield className="text-red-600" size={24} />
-            <span className="font-bold text-lg tracking-tight uppercase">Flagstar <span className="text-red-600">Admin</span></span>
+        <aside className="w-full md:w-80 bg-[#111] border-r border-white/5 flex flex-col p-8">
+          <div className="mb-12 flex items-center gap-4">
+            <div className="bg-red-600 p-3 rounded-2xl shadow-lg shadow-red-600/20">
+              <Shield size={24} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tighter uppercase">Flagstar <span className="text-red-600">Admin</span></h1>
+              <p className="text-[9px] text-gray-600 font-black tracking-widest uppercase">Management Node</p>
+            </div>
           </div>
-          
-          <nav className="flex-1 p-4 space-y-2">
-            {navItems.map((item) => (
+
+          <nav className="flex-1 space-y-4">
+            {[
+              { id: 'USERS', label: 'Customer Central', icon: <Users size={18} /> },
+              { id: 'TRANSACTIONS', label: 'Ledger Control', icon: <ArrowRightLeft size={18} /> },
+              { id: 'RESTRICTIONS', label: 'Security Protocols', icon: <ShieldCheck size={18} /> },
+            ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveModule(item.id as AdminModule)}
-                className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${
-                  activeModule === item.id 
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' 
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                onClick={() => setActiveTab(item.id as any)}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
+                  activeTab === item.id 
+                  ? 'bg-red-600 text-white shadow-xl shadow-red-600/20' 
+                  : 'text-gray-500 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  {item.icon}
-                  <span className="font-medium text-sm">{item.label}</span>
-                </div>
-                {activeModule === item.id && <ChevronRight size={14} />}
+                {item.icon}
+                <span className="font-bold text-sm">{item.label}</span>
               </button>
             ))}
           </nav>
 
-          <div className="p-4 border-t border-white/10">
-            <button 
-              onClick={() => window.location.hash = '#/'}
-              className="w-full flex items-center gap-3 p-3 text-gray-400 hover:text-white transition-colors"
-            >
-              <LogOut size={20} />
-              <span className="font-medium text-sm">Terminate Session</span>
-            </button>
-          </div>
+          <button 
+            onClick={handleLogout}
+            className="mt-12 w-full flex items-center gap-4 p-4 text-gray-600 hover:text-red-500 transition-colors font-bold"
+          >
+            <LogOut size={18} />
+            <span>Terminate Admin Session</span>
+          </button>
         </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-[#0a0a0a] to-[#0f0f0f]">
-          <header className="h-16 border-b border-white/10 flex items-center justify-between px-8 bg-[#0a0a0a]/80 backdrop-blur-md sticky top-0 z-10">
-            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-gray-400">
-              {navItems.find(i => i.id === activeModule)?.label}
-            </h2>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-[10px] text-gray-600 uppercase font-bold">Protocol</p>
-                <p className="text-[10px] text-emerald-500 font-mono font-bold tracking-tighter">{systemStatus}</p>
-              </div>
-              <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-            </div>
-          </header>
-
-          <div className="p-10 max-w-7xl mx-auto">
-            {activeModule === 'DASHBOARD' && <AdminOverview />}
-            {activeModule === 'ACCOUNTS' && <CreateCustomerForm />}
-            {activeModule === 'TRANSACTIONS' && <TransactionPanel />}
-            {activeModule === 'CODES' && <CodeGenerator />}
-            {activeModule === 'AUDIT' && <AuditViewer />}
-          </div>
+        {/* Content */}
+        <main className="flex-1 p-6 md:p-12 bg-gradient-to-br from-[#0a0a0a] to-[#0f0f0f]">
+          {activeTab === 'USERS' && <CustomerManagement customers={customers} onUpdate={loadData} />}
+          {activeTab === 'TRANSACTIONS' && <LedgerControl customers={customers} onUpdate={loadData} />}
+          {activeTab === 'RESTRICTIONS' && <SecurityProtocols customers={customers} />}
         </main>
       </div>
     </AdminShield>
   );
 };
 
-const AdminOverview: React.FC = () => (
-  <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {[
-        { label: 'Active Vaults', value: '2,841', status: 'Optimal' },
-        { label: 'Net Liquidity', value: '$124.5M', status: '+2.4%' },
-        { label: 'Pending COT', value: '14', status: 'Urgent' },
-        { label: 'System Health', value: '99.9%', status: 'Stable' },
-      ].map((stat, i) => (
-        <div key={i} className="bg-[#111] p-6 rounded-2xl border border-white/5 shadow-2xl relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-red-600/5 rounded-full -mr-8 -mt-8 group-hover:bg-red-600/10 transition-all" />
-          <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{stat.label}</p>
-          <p className="text-3xl font-bold mt-2 tracking-tighter">{stat.value}</p>
-          <div className="mt-4 flex items-center gap-2">
-            <div className="h-1 w-1 rounded-full bg-emerald-500" />
-            <span className="text-[10px] font-bold text-emerald-500 uppercase">{stat.status}</span>
+/* Customer Management Sub-Component */
+const CustomerManagement: React.FC<{ customers: any[], onUpdate: () => void }> = ({ customers, onUpdate }) => {
+  const [form, setForm] = useState({ name: '', email: '', balance: '', pin: '' });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const accNum = 'FS-' + Math.floor(100000 + Math.random() * 900000);
+      await Mutations.createCustomer({
+        name: form.name,
+        email: form.email,
+        accountNumber: accNum,
+        pin: form.pin,
+        balance: Number(form.balance)
+      });
+      setForm({ name: '', email: '', balance: '', pin: '' });
+      onUpdate();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-black tracking-tighter uppercase">Customer Central</h2>
+          <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest">Provisioning and Lifecycle Management</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Creation Form */}
+        <div className="lg:col-span-1 bg-[#111] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
+          <h3 className="text-lg font-bold mb-8 flex items-center gap-3 uppercase tracking-tighter">
+            <Plus size={20} className="text-red-600" />
+            Provision Vault
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <input 
+                required placeholder="Full Name" 
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all"
+                value={form.name} onChange={e => setForm({...form, name: e.target.value})}
+              />
+              <input 
+                required placeholder="Email Address" type="email"
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all"
+                value={form.email} onChange={e => setForm({...form, email: e.target.value})}
+              />
+              <input 
+                required placeholder="Opening Balance ($)" type="number"
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all font-mono"
+                value={form.balance} onChange={e => setForm({...form, balance: e.target.value})}
+              />
+              <input 
+                required placeholder="Access PIN (4-6 Digits)" maxLength={6}
+                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all font-mono tracking-widest"
+                value={form.pin} onChange={e => setForm({...form, pin: e.target.value.replace(/\D/g, '')})}
+              />
+            </div>
+            <button disabled={loading} className="w-full bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-red-600/20 transition-all">
+              {loading ? 'Initializing...' : 'Authorize Provisioning'}
+            </button>
+          </form>
+        </div>
+
+        {/* Customer List */}
+        <div className="lg:col-span-2 bg-[#111] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl overflow-hidden">
+          <h3 className="text-lg font-bold mb-8 flex items-center gap-3 uppercase tracking-tighter">
+            <Users size={20} className="text-red-600" />
+            Active Vaults
+          </h3>
+          <div className="space-y-4 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
+            {customers.map(c => (
+              <div key={c.id} className="bg-black/40 p-6 rounded-2xl border border-white/5 flex justify-between items-center group hover:border-red-600/30 transition-all">
+                <div>
+                  <p className="font-bold text-sm tracking-tight">{c.full_name}</p>
+                  <p className="text-[10px] text-gray-500 font-mono mt-1">{c.account_number} • PIN: {c.pin}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-black text-emerald-500 tracking-tighter">${Number(c.balance).toLocaleString()}</p>
+                  <p className="text-[9px] uppercase font-black text-gray-700 tracking-widest">Active Status</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      ))}
+      </div>
     </div>
+  );
+};
 
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 bg-[#111] p-8 rounded-3xl border border-white/5 shadow-2xl">
-        <h3 className="text-lg font-bold mb-8 flex items-center gap-3">
-          <ShieldCheck size={20} className="text-red-600" />
-          Core Execution Monitoring
-        </h3>
-        <div className="space-y-4">
-          {[
-            { label: 'Deterministic State Engine', val: 'LOCKED', color: 'text-emerald-500' },
-            { label: 'Cross-Border COT Validation', val: 'ENFORCED', color: 'text-emerald-500' },
-            { label: 'IRS Tax Compliance Layer', val: 'ACTIVE', color: 'text-emerald-500' },
-            { label: 'Ledger Immutability Check', val: 'VERIFIED', color: 'text-emerald-500' },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between p-5 bg-black/40 rounded-2xl border border-white/5 group hover:border-white/10 transition-all">
-              <span className="text-sm text-gray-400 font-medium">{item.label}</span>
-              <span className={`text-[10px] font-black tracking-widest ${item.color}`}>{item.val}</span>
+/* Ledger Control Sub-Component */
+const LedgerControl: React.FC<{ customers: any[], onUpdate: () => void }> = ({ customers, onUpdate }) => {
+  const [selected, setSelected] = useState<any>(null);
+  const [amount, setAmount] = useState('');
+  const [narration, setNarration] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleTransaction = async (type: 'credit' | 'debit') => {
+    if (!selected || !amount) return;
+    setLoading(true);
+    try {
+      await Mutations.recordTransaction(selected.id, Number(amount), type, narration || `${type.toUpperCase()} - Admin Override`);
+      setAmount('');
+      setNarration('');
+      onUpdate();
+      alert(`Successfully ${type === 'credit' ? 'funded' : 'debited'} account.`);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div>
+        <h2 className="text-3xl font-black tracking-tighter uppercase">Ledger Orchestration</h2>
+        <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest">Manual Balance Control & Transaction Injection</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        <div className="space-y-6">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+            <select 
+              className="w-full bg-black border border-white/10 rounded-2xl p-4 pl-12 outline-none focus:border-red-600 appearance-none cursor-pointer"
+              onChange={(e) => setSelected(customers.find(c => c.id === e.target.value))}
+            >
+              <option value="">Select Target Vault...</option>
+              {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} ({c.account_number})</option>)}
+            </select>
+          </div>
+
+          {selected && (
+            <div className="bg-[#111] p-8 rounded-[2.5rem] border border-red-600/20 shadow-2xl animate-in zoom-in-95 duration-500">
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] mb-1">Target Identity</p>
+                  <h4 className="text-2xl font-bold">{selected.full_name}</h4>
+                  <p className="text-sm text-gray-500 font-mono mt-1">{selected.account_number}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Available Funds</p>
+                  <h4 className="text-2xl font-black text-emerald-500">${Number(selected.balance).toLocaleString()}</h4>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="relative">
+                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    placeholder="0.00" type="number"
+                    className="w-full bg-black border border-white/10 rounded-2xl p-4 pl-12 outline-none focus:border-red-600 font-mono text-xl"
+                    value={amount} onChange={e => setAmount(e.target.value)}
+                  />
+                </div>
+                <input 
+                  placeholder="Transaction Narration (Optional)" 
+                  className="w-full bg-black border border-white/10 rounded-2xl p-4 outline-none focus:border-red-600"
+                  value={narration} onChange={e => setNarration(e.target.value)}
+                />
+                
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <button 
+                    disabled={loading || !amount} onClick={() => handleTransaction('credit')}
+                    className="bg-emerald-600 hover:bg-emerald-700 py-4 rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-emerald-600/10 transition-all disabled:bg-gray-800"
+                  >
+                    Credit Account
+                  </button>
+                  <button 
+                    disabled={loading || !amount} onClick={() => handleTransaction('debit')}
+                    className="bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-red-600/10 transition-all disabled:bg-gray-800"
+                  >
+                    Debit Account
+                  </button>
+                </div>
+              </div>
             </div>
-          ))}
+          )}
         </div>
-      </div>
 
-      <div className="bg-red-600/5 p-8 rounded-3xl border border-red-600/20 shadow-2xl flex flex-col justify-between">
-        <div>
-          <Shield size={32} className="text-red-600 mb-6" />
-          <h3 className="text-xl font-bold mb-4">Admin Authority</h3>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            Administrative actions are executed through high-privilege Edge Functions. 
-            All system mutations are recorded in the immutable audit ledger for compliance verification.
-          </p>
+        <div className="bg-red-600/5 p-10 rounded-[3rem] border border-red-600/10 flex flex-col justify-between">
+          <div>
+            <Shield size={40} className="text-red-600 mb-8" />
+            <h3 className="text-2xl font-bold mb-4 uppercase tracking-tighter">Direct Balance Mutation</h3>
+            <p className="text-sm text-gray-500 leading-relaxed font-medium">
+              Mutations injected here skip the verification engine and affect the core ledger immediately. 
+              Always provide an accurate narration for audit compliance.
+            </p>
+          </div>
+          <div className="mt-8 pt-8 border-t border-red-600/10">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Protocol Version</span>
+              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest font-mono">STABLE_V2.0</span>
+            </div>
+          </div>
         </div>
-        <button className="mt-8 w-full py-4 bg-red-600 hover:bg-red-700 rounded-2xl font-bold text-sm shadow-xl shadow-red-600/20 transition-all">
-          Generate Authority Report
-        </button>
       </div>
     </div>
-  </div>
-);
+  );
+};
+
+/* Security Protocols (Restrictions) Sub-Component */
+const SecurityProtocols: React.FC<{ customers: any[] }> = ({ customers }) => {
+  const [selected, setSelected] = useState<any>(null);
+  const [restrictions, setRestrictions] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (selected) {
+      Queries.getTransferRestrictions(selected.id).then(({ data }) => setRestrictions(data));
+    }
+  }, [selected]);
+
+  const toggle = async (field: string) => {
+    if (!selected || !restrictions) return;
+    const update = { [field]: !restrictions[field] };
+    await Mutations.updateRestrictions(selected.id, update);
+    setRestrictions({...restrictions, ...update});
+  };
+
+  const updateCode = async (field: string, val: string) => {
+    if (!selected || !restrictions) return;
+    const update = { [field]: val };
+    await Mutations.updateRestrictions(selected.id, update);
+    setRestrictions({...restrictions, ...update});
+  };
+
+  return (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <div>
+        <h2 className="text-3xl font-black tracking-tighter uppercase">Security Protocols</h2>
+        <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest">Manage Transfer Restrictions & Authentication Codes</p>
+      </div>
+
+      <div className="max-w-4xl space-y-8">
+        <select 
+          className="w-full bg-[#111] border border-white/10 rounded-2xl p-4 outline-none focus:border-red-600 appearance-none cursor-pointer"
+          onChange={(e) => setSelected(customers.find(c => c.id === e.target.value))}
+        >
+          <option value="">Select Target Vault for Protocol Management...</option>
+          {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} ({c.account_number})</option>)}
+        </select>
+
+        {selected && restrictions && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in zoom-in-95 duration-500">
+            {[
+              { id: 'cot', label: 'Cost of Transfer (COT)' },
+              { id: 'tax', label: 'Tax Compliance (TAX)' },
+              { id: 'irs', label: 'IRS Authority (IRS)' },
+            ].map((p) => (
+              <div key={p.id} className="bg-[#111] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-500">{p.label}</span>
+                  <button 
+                    onClick={() => toggle(`${p.id}_enabled`)}
+                    className={`h-6 w-12 rounded-full relative transition-all ${restrictions[`${p.id}_enabled`] ? 'bg-red-600' : 'bg-gray-800'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${restrictions[`${p.id}_enabled`] ? 'left-7' : 'left-1'}`} />
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest">Active Code</label>
+                  <input 
+                    className="w-full bg-black border border-white/5 rounded-xl p-3 text-sm font-mono text-red-500 font-bold outline-none focus:border-red-600"
+                    value={restrictions[`${p.id}_code`] || ''}
+                    onChange={(e) => updateCode(`${p.id}_code`, e.target.value)}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {restrictions[`${p.id}_enabled`] ? (
+                    <AlertCircle size={14} className="text-red-500" />
+                  ) : (
+                    <CheckCircle size={14} className="text-emerald-500" />
+                  )}
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${restrictions[`${p.id}_enabled`] ? 'text-red-500' : 'text-emerald-500'}`}>
+                    {restrictions[`${p.id}_enabled`] ? 'Enforcement Active' : 'By-Pass Enabled'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default AdminDashboard;

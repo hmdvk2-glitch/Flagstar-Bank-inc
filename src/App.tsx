@@ -2,40 +2,42 @@ import React, { useState, useEffect } from 'react';
 import Login from './customer/Login';
 import Dashboard from './customer/Dashboard';
 import AdminDashboard from './admin/AdminDashboard';
-import { supabase } from './supabase/client';
+import Footer from './components/Footer';
 
 const App: React.FC = () => {
-  const [route, setRoute] = useState(window.location.hash || '#/login');
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const handleHashChange = () => setRoute(window.location.hash || '#/login');
-    window.addEventListener('hashchange', handleHashChange);
-    
-    // Auth Listener for route protection
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        window.location.hash = '#/login';
-      }
-    });
-
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      subscription.unsubscribe();
-    };
+    // Check for local simulation session
+    const storedUser = localStorage.getItem('bank_user');
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    setLoading(false);
   }, []);
 
-  // Simplified Router
+  if (loading) return null;
+
   const renderRoute = () => {
-    if (route === '#/login' || route === '#/') return <Login />;
-    if (route === '#/dashboard') return <Dashboard />;
-    if (route === '#/admin') return <AdminDashboard />;
+    if (!user) return <Login />;
     
-    return <Login />; // Fallback
+    // Simple Router based on role
+    const hash = window.location.hash;
+    
+    if (user.role === 'admin') {
+      return <AdminDashboard />;
+    }
+    
+    return <Dashboard />;
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {renderRoute()}
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col font-sans selection:bg-red-600/30">
+      <div className="flex-1">
+        {renderRoute()}
+      </div>
+      <Footer />
     </div>
   );
 };

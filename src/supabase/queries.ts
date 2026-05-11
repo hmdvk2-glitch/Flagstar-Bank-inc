@@ -9,25 +9,35 @@ export const Queries = {
       .single();
   },
 
-  async getAccounts(userId: string) {
+  async login(accountNumber: string, pin: string) {
     return supabase
-      .from('accounts')
+      .from('customers')
       .select('*')
-      .eq('customer_id', userId);
+      .eq('account_number', accountNumber)
+      .eq('pin', pin)
+      .single();
   },
 
-  async getTransactions(accountId: string) {
+  async getAccounts() {
+    return supabase
+      .from('customers')
+      .select('*')
+      .neq('role', 'admin');
+  },
+
+  async getTransactions(customerId: string) {
     return supabase
       .from('transactions')
       .select('*')
-      .eq('account_id', accountId)
+      .eq('customer_id', customerId)
       .order('created_at', { ascending: false });
   },
 
-  async getAuditLogs() {
+  async getTransferRestrictions(customerId: string) {
     return supabase
-      .from('audit_logs')
+      .from('transfer_codes')
       .select('*')
-      .order('created_at', { ascending: false });
+      .eq('customer_id', customerId)
+      .single();
   }
 };
