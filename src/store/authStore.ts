@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 
 export type User = {
   id: string;
-  role: 'admin' | 'customer';
   auth_user_id?: string;
   [key: string]: any;
 } | null;
@@ -31,8 +30,6 @@ export function useAuthStore() {
 
   return {
     user,
-    isAdmin: user?.role === 'admin',
-    isCustomer: user?.role === 'customer',
     isAuthenticated: !!user
   };
 }

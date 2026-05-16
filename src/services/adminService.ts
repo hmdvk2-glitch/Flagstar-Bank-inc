@@ -48,11 +48,7 @@ export const adminService = {
    * Advances a transaction stage via hardened RPC.
    */
   verifyStage: async (txnId: string, stage: string, code: string) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("No active admin session");
-
     const { data, error } = await supabase.rpc('admin_verify_stage', {
-      p_admin_auth_id: session.user.id,
       p_txn_id: txnId,
       p_target_stage: stage,
       p_verification_code: code

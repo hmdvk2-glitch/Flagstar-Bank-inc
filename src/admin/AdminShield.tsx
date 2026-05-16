@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Shield, Lock, X, RefreshCcw, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { adminAuth } from '../auth/adminAuth';
-import { supabase } from '../supabase/client';
-import AdminSetupWizard from './AdminSetupWizard';
+import { requireAdmin } from '../auth/adminGuard';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AdminShieldProps {
@@ -11,18 +10,11 @@ interface AdminShieldProps {
 }
 
 const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
-  const { isAdmin } = useAuthStore();
+  const { user } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', pin: '' });
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
-  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    supabase.from('admins').select('id', { count: 'exact', head: true }).then(({count}) => {
-      setNeedsSetup(count === 0);
-    });
-  }, []);
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,11 +46,9 @@ const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
           <div className="absolute inset-0 bg-[#C00000]/5 rounded-2xl blur-xl group-hover:opacity-100 opacity-0 transition-opacity" />
         </motion.button>
 
-        {needsSetup && <AdminSetupWizard onComplete={() => setNeedsSetup(false)} />}
-
         {/* Admin Login Modal */}
         <AnimatePresence>
-          {showLogin && !isAdmin && (
+          {showLogin && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -125,15 +115,10 @@ const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
     );
   }
 
-  if (needsSetup === null) {
-    return null; // wait for check
-  }
-
-  if (needsSetup && !isAdmin) {
-    return <AdminSetupWizard onComplete={() => setNeedsSetup(false)} />;
-  }
-
-  if (!isAdmin) {
+  try {
+    requireAdmin(user);
+    return <>{children}</>;
+  } catch (err) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#F9FAFB] text-[#111827] p-6">
         <motion.div 
@@ -154,8 +139,6 @@ const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
       </div>
     );
   }
-
-  return <>{children}</>;
 };
 
 export default AdminShield;

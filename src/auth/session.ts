@@ -18,8 +18,6 @@ export async function hydrateSession() {
     if (adminData) {
       authStore.setUser({ 
         ...adminData, 
-        role: 'admin', 
-        id: adminData.id,
         auth_user_id: session.user.id 
       });
       return;
@@ -33,7 +31,7 @@ export async function hydrateSession() {
       .maybeSingle();
 
     if (userData) {
-      authStore.setUser({ ...userData, role: 'customer' });
+      authStore.setUser(userData);
       return;
     }
   }
@@ -69,5 +67,5 @@ export async function clearSession() {
 
 export function saveCustomerSession(user: any) {
   localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(user));
-  authStore.setUser({ ...user, role: 'customer' });
+  authStore.setUser(user);
 }

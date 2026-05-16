@@ -102,9 +102,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 5. ADMIN VERIFICATION GATEWAY
+-- 5. ADMIN VERIFICATION GATEWAY (Hardened v4.0)
 CREATE OR REPLACE FUNCTION admin_verify_stage(
-  p_admin_auth_id UUID,
   p_txn_id UUID,
   p_target_stage TEXT,
   p_verification_code TEXT
@@ -114,9 +113,17 @@ DECLARE
   v_expected_code TEXT;
   v_amount DECIMAL(15,2);
 BEGIN
-  -- 1. AUTHORIZATION CHECK
-  IF NOT EXISTS (SELECT 1 FROM admins WHERE auth_user_id = p_admin_auth_id) THEN
-    RAISE EXCEPTION 'AUTH-ERR: Access Denied. Admin credentials required.';
+  -- STEP A: AUTH CHECK (REQUIRED)
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'UNAUTHENTICATED';
+  END IF;
+
+  -- STEP B: ADMIN CHECK (REQUIRED)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.admins 
+    WHERE auth_user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_ADMIN';
   END IF;
 
   -- 2. FETCH TRANSACTION DETAILS
@@ -149,24 +156,46 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 6. TIGHTEN RLS (Production Lockdown)
-DROP POLICY IF EXISTS "Admins full access" ON users;
-DROP POLICY IF EXISTS "Users self access" ON users;
+-- 6. RLS ENFORCEMENT ALIGNMENT (Hardened v4.0)
+-- A. ENABLE RLS ON ALL TABLES
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transfer_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 
--- Users can only see themselves
-CREATE POLICY "Users read self" ON users FOR SELECT USING (id = auth.uid());
--- Admins can see all users
-CREATE POLICY "Admins read all" ON users FOR SELECT USING (
-  EXISTS (SELECT 1 FROM admins WHERE auth_user_id = auth.uid())
-);
+-- B. CLEANUP PREVIOUS POLICIES
+DROP POLICY IF EXISTS "Users read self" ON users;
+DROP POLICY IF EXISTS "Admins read all" ON users;
+DROP POLICY IF EXISTS "Users read transactions" ON transactions;
+DROP POLICY IF EXISTS "Admins read transactions" ON transactions;
 
--- Transaction Locking: Users can only see their own
-CREATE POLICY "Users read transactions" ON transactions FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "Admins read transactions" ON transactions FOR SELECT USING (
-  EXISTS (SELECT 1 FROM admins WHERE auth_user_id = auth.uid())
-);
+-- C. USERS TABLE POLICIES
+CREATE POLICY "admin_full_access_users" ON users FOR ALL 
+USING (EXISTS (SELECT 1 FROM admins WHERE auth_user_id = auth.uid()));
 
--- 7. ATOMIC CUSTOMER PROVISIONING
+CREATE POLICY "customer_isolation_users" ON users FOR SELECT 
+USING (id = auth.uid());
+
+-- D. TRANSACTIONS TABLE POLICIES
+CREATE POLICY "admin_full_access_transactions" ON transactions FOR ALL 
+USING (EXISTS (SELECT 1 FROM admins WHERE auth_user_id = auth.uid()));
+
+CREATE POLICY "customer_isolation_transactions" ON transactions FOR SELECT 
+USING (user_id = auth.uid());
+
+-- E. TRANSFER_CODES TABLE POLICIES
+CREATE POLICY "admin_full_access_codes" ON transfer_codes FOR ALL 
+USING (EXISTS (SELECT 1 FROM admins WHERE auth_user_id = auth.uid()));
+
+CREATE POLICY "customer_isolation_codes" ON transfer_codes FOR SELECT 
+USING (user_id = auth.uid());
+
+-- F. ADMINS TABLE POLICIES (Self-Read Only)
+CREATE POLICY "admin_read_self" ON admins FOR SELECT 
+USING (auth_user_id = auth.uid());
+
+-- 7. ATOMIC CUSTOMER PROVISIONING (Hardened v4.0)
+-- ... (rest of the file stays the same)
 CREATE OR REPLACE FUNCTION admin_create_customer(
   p_name TEXT,
   p_email TEXT,
@@ -176,6 +205,20 @@ CREATE OR REPLACE FUNCTION admin_create_customer(
 DECLARE
   v_user_id UUID;
 BEGIN
+  -- STEP A: AUTH CHECK (REQUIRED)
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'UNAUTHENTICATED';
+  END IF;
+
+  -- STEP B: ADMIN CHECK (REQUIRED)
+  IF NOT EXISTS (
+    SELECT 1 FROM public.admins 
+    WHERE auth_user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'UNAUTHORIZED_ADMIN';
+  END IF;
+
+  -- STEP C: BUSINESS LOGIC
   -- Insert User
   INSERT INTO users (full_name, email, account_number, pin, balance)
   VALUES (p_name, p_email, p_account, p_pin, 0.00)
