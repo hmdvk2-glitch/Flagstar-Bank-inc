@@ -9,61 +9,111 @@ import {
   Shield,
   Search,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  UserPlus,
+  History,
+  Menu,
+  X
 } from 'lucide-react';
 import AdminShield from './AdminShield';
-import { Queries } from '../supabase/queries';
-import { Mutations } from '../supabase/mutations';
+import { adminLogic } from '../lib/admin';
+import { useAuthStore } from '../store/authStore';
+import { adminAuth } from '../auth/adminAuth';
+import CustomerWizard from './CustomerWizard';
+import AuditDashboard from './AuditDashboard';
+import { supabase } from '../supabase/client';
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'USERS' | 'TRANSACTIONS' | 'RESTRICTIONS'>('USERS');
-  const [customers, setCustomers] = useState<any[]>([]);
+  const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<'USERS' | 'TRANSACTIONS' | 'RESTRICTIONS' | 'AUDIT' | 'ADMINS'>('USERS');
+  const [users, setUsers] = useState<any[]>([]);
+  const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
-    const { data } = await Queries.getAccounts();
-    if (data) setCustomers(data);
+    try {
+      const data = await adminLogic.getAllCustomers();
+      setUsers(data);
+      
+      const { data: adminList } = await supabase.from('admins').select('*');
+      if (adminList) {
+        // Deduplicate by auth_user_id (Architecture Rule 4)
+        const uniqueAdmins = Array.from(
+          new Map(adminList.map(a => [a.auth_user_id, a])).values()
+        );
+        setAdmins(uniqueAdmins);
+      }
+    } catch (error) {
+      console.error("Failed to load admin data:", error);
+    }
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
+
+    const channel = supabase
+      .channel('admin-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'admins' }, () => loadData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('bank_user');
-    window.location.reload();
+    adminAuth.logout();
   };
 
   return (
     <AdminShield>
-      <div className="flex flex-col md:flex-row min-h-screen bg-[#0a0a0a] text-white">
+      <div className="flex flex-col md:flex-row min-h-screen bg-[#F9FAFB] text-[#111827]">
+        {/* Mobile Header */}
+        <div className="md:hidden bg-white p-4 flex items-center justify-between border-b border-gray-100 z-50 sticky top-0">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#C00000] p-2 rounded-lg shadow-sm">
+              <Shield size={20} className="text-white" />
+            </div>
+            <h1 className="text-lg font-bold tracking-tighter uppercase">Flagstar <span className="text-[#C00000]">Admin</span></h1>
+          </div>
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 bg-gray-50 rounded-lg">
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
+
         {/* Sidebar */}
-        <aside className="w-full md:w-80 bg-[#111] border-r border-white/5 flex flex-col p-8">
-          <div className="mb-12 flex items-center gap-4">
-            <div className="bg-red-600 p-3 rounded-2xl shadow-lg shadow-red-600/20">
-              <Shield size={24} />
+        <aside className={`${sidebarOpen ? 'block' : 'hidden'} md:flex w-full md:w-80 bg-white border-r border-gray-100 flex-col p-6 md:p-8 z-40 fixed md:sticky top-0 h-screen md:h-auto overflow-y-auto`}>
+          <div className="mb-12 items-center gap-4 hidden md:flex">
+            <div className="bg-[#C00000] p-3 rounded-2xl shadow-lg shadow-[#C00000]/20">
+              <Shield size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tighter uppercase">Flagstar <span className="text-red-600">Admin</span></h1>
-              <p className="text-[9px] text-gray-600 font-black tracking-widest uppercase">Management Node</p>
+              <h1 className="text-xl font-bold tracking-tighter uppercase">Flagstar <span className="text-[#C00000]">Admin</span></h1>
+              <p className="text-[9px] text-gray-400 font-black tracking-widest uppercase">Institutional Management</p>
             </div>
           </div>
 
-          <nav className="flex-1 space-y-4">
+          <nav className="flex-1 space-y-2">
             {[
               { id: 'USERS', label: 'Customer Central', icon: <Users size={18} /> },
               { id: 'TRANSACTIONS', label: 'Ledger Control', icon: <ArrowRightLeft size={18} /> },
               { id: 'RESTRICTIONS', label: 'Security Protocols', icon: <ShieldCheck size={18} /> },
+              { id: 'ADMINS', label: 'Staff Management', icon: <Shield size={18} /> },
+              { id: 'AUDIT', label: 'Audit Log', icon: <History size={18} /> },
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
+                onClick={() => { setActiveTab(item.id as any); setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
                   activeTab === item.id 
-                  ? 'bg-red-600 text-white shadow-xl shadow-red-600/20' 
-                  : 'text-gray-500 hover:bg-white/5 hover:text-white'
+                  ? 'bg-gray-900 text-white shadow-xl shadow-gray-900/10' 
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-[#111827]'
                 }`}
               >
                 {item.icon}
@@ -74,137 +124,149 @@ const AdminDashboard: React.FC = () => {
 
           <button 
             onClick={handleLogout}
-            className="mt-12 w-full flex items-center gap-4 p-4 text-gray-600 hover:text-red-500 transition-colors font-bold"
+            className="mt-8 w-full flex items-center gap-4 p-4 text-gray-400 hover:text-[#C00000] transition-colors font-bold text-sm"
           >
             <LogOut size={18} />
-            <span>Terminate Admin Session</span>
+            <span>Terminate Session</span>
           </button>
         </aside>
 
         {/* Content */}
-        <main className="flex-1 p-6 md:p-12 bg-gradient-to-br from-[#0a0a0a] to-[#0f0f0f]">
-          {activeTab === 'USERS' && <CustomerManagement customers={customers} onUpdate={loadData} />}
-          {activeTab === 'TRANSACTIONS' && <LedgerControl customers={customers} onUpdate={loadData} />}
-          {activeTab === 'RESTRICTIONS' && <SecurityProtocols customers={customers} />}
+        <main className="flex-1 p-4 sm:p-6 lg:p-12 w-full max-w-screen-2xl mx-auto">
+          {activeTab === 'USERS' && <CustomerManagement users={users} onUpdate={loadData} onStartWizard={() => setShowWizard(true)} />}
+          {activeTab === 'TRANSACTIONS' && <LedgerControl users={users} onUpdate={loadData} adminId={user?.id} />}
+          {activeTab === 'RESTRICTIONS' && <SecurityProtocols users={users} />}
+          {activeTab === 'ADMINS' && <StaffManagement admins={admins} />}
+          {activeTab === 'AUDIT' && <AuditDashboard />}
         </main>
+
+        {/* Wizard Overlay */}
+        {showWizard && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="relative w-full max-w-2xl">
+              <button onClick={() => setShowWizard(false)} className="absolute -top-12 right-0 text-white/50 hover:text-white transition-colors flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                Cancel Provisioning <X size={16} />
+              </button>
+              <CustomerWizard onComplete={() => { setShowWizard(false); loadData(); }} onCancel={() => setShowWizard(false)} />
+            </div>
+          </div>
+        )}
       </div>
     </AdminShield>
   );
 };
 
-/* Customer Management Sub-Component */
-const CustomerManagement: React.FC<{ customers: any[], onUpdate: () => void }> = ({ customers, onUpdate }) => {
-  const [form, setForm] = useState({ name: '', email: '', balance: '', pin: '' });
-  const [loading, setLoading] = useState(false);
+const CustomerManagement: React.FC<{ users: any[], onUpdate: () => void, onStartWizard: () => void }> = ({ users, onUpdate, onStartWizard }) => {
+  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleUpdateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     try {
-      const accNum = 'FS-' + Math.floor(100000 + Math.random() * 900000);
-      await Mutations.createCustomer({
-        name: form.name,
-        email: form.email,
-        accountNumber: accNum,
-        pin: form.pin,
-        balance: Number(form.balance)
-      });
-      setForm({ name: '', email: '', balance: '', pin: '' });
+      const { error } = await supabase
+        .from('users')
+        .update({
+          full_name: editingCustomer.full_name,
+          account_number: editingCustomer.account_number
+        })
+        .eq('id', editingCustomer.id);
+
+      if (error) throw error;
+      setEditingCustomer(null);
       onUpdate();
     } catch (err: any) {
       alert(err.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-12 animate-slide-up">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-black tracking-tighter uppercase">Customer Central</h2>
-          <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest">Provisioning and Lifecycle Management</p>
+          <h2 className="text-3xl font-bold tracking-tight uppercase">Customer Central</h2>
+          <p className="text-gray-400 text-xs mt-2 uppercase tracking-[0.2em] font-black">Institutional Provisioning and Management</p>
+        </div>
+        <button onClick={onStartWizard} className="px-8 py-4 bg-[#C00000] text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-[#C00000]/10 hover:bg-[#A00000] transition-all flex items-center gap-3">
+          <UserPlus size={18} /> Launch Provisioning Wizard
+        </button>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-[2.5rem] shadow-sm overflow-hidden mt-8">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50/50 border-b border-gray-100">
+              <tr>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Identity</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Account</th>
+                <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Balance</th>
+                <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {users.map(u => (
+                <tr key={u.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <td className="px-6 py-5 font-bold text-sm">{u.full_name}</td>
+                  <td className="px-6 py-5 font-mono text-xs text-gray-500">{u.account_number}</td>
+                  <td className="px-6 py-5 font-black text-[#C00000]">${Number(u.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-6 py-5 text-right">
+                    <button onClick={() => setEditingCustomer(u)} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-xs font-bold rounded-lg transition-colors">Edit</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Creation Form */}
-        <div className="lg:col-span-1 bg-[#111] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl">
-          <h3 className="text-lg font-bold mb-8 flex items-center gap-3 uppercase tracking-tighter">
-            <Plus size={20} className="text-red-600" />
-            Provision Vault
-          </h3>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <input 
-                required placeholder="Full Name" 
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all"
-                value={form.name} onChange={e => setForm({...form, name: e.target.value})}
-              />
-              <input 
-                required placeholder="Email Address" type="email"
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all"
-                value={form.email} onChange={e => setForm({...form, email: e.target.value})}
-              />
-              <input 
-                required placeholder="Opening Balance ($)" type="number"
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all font-mono"
-                value={form.balance} onChange={e => setForm({...form, balance: e.target.value})}
-              />
-              <input 
-                required placeholder="Access PIN (4-6 Digits)" maxLength={6}
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 outline-none focus:border-red-600 transition-all font-mono tracking-widest"
-                value={form.pin} onChange={e => setForm({...form, pin: e.target.value.replace(/\D/g, '')})}
-              />
-            </div>
-            <button disabled={loading} className="w-full bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-red-600/20 transition-all">
-              {loading ? 'Initializing...' : 'Authorize Provisioning'}
-            </button>
-          </form>
-        </div>
-
-        {/* Customer List */}
-        <div className="lg:col-span-2 bg-[#111] p-8 rounded-[2.5rem] border border-white/5 shadow-2xl overflow-hidden">
-          <h3 className="text-lg font-bold mb-8 flex items-center gap-3 uppercase tracking-tighter">
-            <Users size={20} className="text-red-600" />
-            Active Vaults
-          </h3>
-          <div className="space-y-4 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
-            {customers.map(c => (
-              <div key={c.id} className="bg-black/40 p-6 rounded-2xl border border-white/5 flex justify-between items-center group hover:border-red-600/30 transition-all">
-                <div>
-                  <p className="font-bold text-sm tracking-tight">{c.full_name}</p>
-                  <p className="text-[10px] text-gray-500 font-mono mt-1">{c.account_number} • PIN: {c.pin}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-black text-emerald-500 tracking-tighter">${Number(c.balance).toLocaleString()}</p>
-                  <p className="text-[9px] uppercase font-black text-gray-700 tracking-widest">Active Status</p>
-                </div>
-              </div>
-            ))}
+      {editingCustomer && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-6">
+            <h3 className="text-xl font-bold">Edit Customer</h3>
+            <form onSubmit={handleUpdateCustomer} className="space-y-4">
+              <input className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm font-bold" value={editingCustomer.full_name} onChange={e => setEditingCustomer({...editingCustomer, full_name: e.target.value})} />
+              <input className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-sm font-mono" value={editingCustomer.account_number} onChange={e => setEditingCustomer({...editingCustomer, account_number: e.target.value})} />
+              <button disabled={saving} className="w-full bg-[#C00000] text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px]">
+                {saving ? 'Updating...' : 'Commit Changes'}
+              </button>
+              <button type="button" onClick={() => setEditingCustomer(null)} className="w-full text-gray-400 text-[10px] font-black uppercase">Cancel</button>
+            </form>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
 
-/* Ledger Control Sub-Component */
-const LedgerControl: React.FC<{ customers: any[], onUpdate: () => void }> = ({ customers, onUpdate }) => {
-  const [selected, setSelected] = useState<any>(null);
-  const [amount, setAmount] = useState('');
-  const [narration, setNarration] = useState('');
+const LedgerControl: React.FC<{ onUpdate: () => void, adminId?: string }> = ({ onUpdate }) => {
+  const [pendingTxns, setPendingTxns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [codes, setCodes] = useState<Record<string, string>>({});
 
-  const handleTransaction = async (type: 'credit' | 'debit') => {
-    if (!selected || !amount) return;
+  const loadPending = async () => {
+    const data = await adminService.getLedger();
+    setPendingTxns(data.filter(t => t.status === 'PENDING'));
+  };
+
+  useEffect(() => {
+    loadPending();
+  }, []);
+
+  const handleVerify = async (txnId: string, stage: string) => {
+    const code = codes[txnId];
+    if (!code) {
+      alert("Verification Code Required");
+      return;
+    }
+    
     setLoading(true);
     try {
-      await Mutations.recordTransaction(selected.id, Number(amount), type, narration || `${type.toUpperCase()} - Admin Override`);
-      setAmount('');
-      setNarration('');
+      await adminService.verifyStage(txnId, stage, code);
+      alert(`Stage ${stage} Verified Successfully`);
+      loadPending();
       onUpdate();
-      alert(`Successfully ${type === 'credit' ? 'funded' : 'debited'} account.`);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -213,177 +275,147 @@ const LedgerControl: React.FC<{ customers: any[], onUpdate: () => void }> = ({ c
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div>
-        <h2 className="text-3xl font-black tracking-tighter uppercase">Ledger Orchestration</h2>
-        <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest">Manual Balance Control & Transaction Injection</p>
+    <div className="space-y-12 animate-slide-up">
+      <div className="flex justify-between items-end">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight uppercase">Transaction Verification Queue</h2>
+          <p className="text-gray-400 text-xs mt-2 uppercase tracking-[0.2em] font-black">Audit & Compliance Enforcement</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        <div className="space-y-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-            <select 
-              className="w-full bg-black border border-white/10 rounded-2xl p-4 pl-12 outline-none focus:border-red-600 appearance-none cursor-pointer"
-              onChange={(e) => setSelected(customers.find(c => c.id === e.target.value))}
-            >
-              <option value="">Select Target Vault...</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} ({c.account_number})</option>)}
-            </select>
-          </div>
-
-          {selected && (
-            <div className="bg-[#111] p-8 rounded-[2.5rem] border border-red-600/20 shadow-2xl animate-in zoom-in-95 duration-500">
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <p className="text-[10px] font-black text-red-600 uppercase tracking-[0.2em] mb-1">Target Identity</p>
-                  <h4 className="text-2xl font-bold">{selected.full_name}</h4>
-                  <p className="text-sm text-gray-500 font-mono mt-1">{selected.account_number}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-1">Available Funds</p>
-                  <h4 className="text-2xl font-black text-emerald-500">${Number(selected.balance).toLocaleString()}</h4>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="relative">
-                  <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                  <input 
-                    placeholder="0.00" type="number"
-                    className="w-full bg-black border border-white/10 rounded-2xl p-4 pl-12 outline-none focus:border-red-600 font-mono text-xl"
-                    value={amount} onChange={e => setAmount(e.target.value)}
-                  />
-                </div>
-                <input 
-                  placeholder="Transaction Narration (Optional)" 
-                  className="w-full bg-black border border-white/10 rounded-2xl p-4 outline-none focus:border-red-600"
-                  value={narration} onChange={e => setNarration(e.target.value)}
-                />
-                
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                  <button 
-                    disabled={loading || !amount} onClick={() => handleTransaction('credit')}
-                    className="bg-emerald-600 hover:bg-emerald-700 py-4 rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-emerald-600/10 transition-all disabled:bg-gray-800"
-                  >
-                    Credit Account
-                  </button>
-                  <button 
-                    disabled={loading || !amount} onClick={() => handleTransaction('debit')}
-                    className="bg-red-600 hover:bg-red-700 py-4 rounded-xl font-bold uppercase tracking-widest shadow-xl shadow-red-600/10 transition-all disabled:bg-gray-800"
-                  >
-                    Debit Account
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-red-600/5 p-10 rounded-[3rem] border border-red-600/10 flex flex-col justify-between">
-          <div>
-            <Shield size={40} className="text-red-600 mb-8" />
-            <h3 className="text-2xl font-bold mb-4 uppercase tracking-tighter">Direct Balance Mutation</h3>
-            <p className="text-sm text-gray-500 leading-relaxed font-medium">
-              Mutations injected here skip the verification engine and affect the core ledger immediately. 
-              Always provide an accurate narration for audit compliance.
-            </p>
-          </div>
-          <div className="mt-8 pt-8 border-t border-red-600/10">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black text-gray-600 uppercase tracking-widest">Protocol Version</span>
-              <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest font-mono">STABLE_V2.0</span>
-            </div>
-          </div>
-        </div>
+      <div className="bg-white border border-gray-100 rounded-[2.5rem] shadow-sm overflow-hidden mt-8">
+        <table className="w-full">
+          <thead className="bg-gray-50/50 border-b border-gray-100">
+            <tr>
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Transaction ID</th>
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Amount</th>
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Current Stage</th>
+              <th className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Enforcement Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {pendingTxns.map(t => (
+              <tr key={t.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="px-6 py-8">
+                  <p className="font-mono text-[10px] text-gray-400 mb-1">{t.id}</p>
+                  <p className="font-bold text-sm">To: {t.to_account}</p>
+                </td>
+                <td className="px-6 py-8">
+                  <p className="font-black text-lg text-[#111827]">${Number(t.amount).toLocaleString()}</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">{t.narration}</p>
+                </td>
+                <td className="px-6 py-8">
+                  <span className="px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-full border border-amber-100">
+                    {t.stage}
+                  </span>
+                </td>
+                <td className="px-6 py-8">
+                  <div className="flex flex-col items-end gap-4">
+                    <input 
+                      placeholder="Auth Code"
+                      className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-xs font-bold w-32"
+                      value={codes[t.id] || ''}
+                      onChange={e => setCodes({...codes, [t.id]: e.target.value})}
+                    />
+                    <div className="flex gap-2">
+                      {t.stage === 'PENDING' && (
+                        <button onClick={() => handleVerify(t.id, 'COT_VERIFIED')} className="px-4 py-2 bg-gray-900 text-white text-[10px] font-black uppercase rounded-lg hover:bg-black transition-all">Verify COT</button>
+                      )}
+                      {t.stage === 'COT_VERIFIED' && (
+                        <button onClick={() => handleVerify(t.id, 'TAX_VERIFIED')} className="px-4 py-2 bg-gray-900 text-white text-[10px] font-black uppercase rounded-lg hover:bg-black transition-all">Verify TAX</button>
+                      )}
+                      {t.stage === 'TAX_VERIFIED' && (
+                        <button onClick={() => handleVerify(t.id, 'IRS_VERIFIED')} className="px-4 py-2 bg-gray-900 text-white text-[10px] font-black uppercase rounded-lg hover:bg-black transition-all">Verify IRS</button>
+                      )}
+                      {t.stage === 'IRS_VERIFIED' && (
+                        <button onClick={() => handleVerify(t.id, 'COMPLETED')} className="px-4 py-2 bg-[#C00000] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#A00000] transition-all">Complete Wire</button>
+                      )}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {pendingTxns.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-6 py-20 text-center text-gray-400 font-black uppercase tracking-widest text-sm">
+                  No Pending Compliance Items Found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
-/* Security Protocols (Restrictions) Sub-Component */
-const SecurityProtocols: React.FC<{ customers: any[] }> = ({ customers }) => {
+const SecurityProtocols: React.FC<{ users: any[] }> = ({ users }) => {
   const [selected, setSelected] = useState<any>(null);
   const [restrictions, setRestrictions] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (selected) {
-      Queries.getTransferRestrictions(selected.id).then(({ data }) => setRestrictions(data));
+      supabase.from('transfer_codes').select('*').eq('user_id', selected.id).maybeSingle()
+        .then(({data}) => setRestrictions(data));
     }
   }, [selected]);
 
   const toggle = async (field: string) => {
     if (!selected || !restrictions) return;
     const update = { [field]: !restrictions[field] };
-    await Mutations.updateRestrictions(selected.id, update);
-    setRestrictions({...restrictions, ...update});
-  };
-
-  const updateCode = async (field: string, val: string) => {
-    if (!selected || !restrictions) return;
-    const update = { [field]: val };
-    await Mutations.updateRestrictions(selected.id, update);
+    await adminLogic.updateRestrictions(selected.id, update);
     setRestrictions({...restrictions, ...update});
   };
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div>
-        <h2 className="text-3xl font-black tracking-tighter uppercase">Security Protocols</h2>
-        <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest">Manage Transfer Restrictions & Authentication Codes</p>
-      </div>
+    <div className="space-y-12 animate-slide-up">
+      <h2 className="text-3xl font-bold tracking-tight uppercase">Security Protocols</h2>
+      <select className="w-full bg-white border border-gray-100 rounded-2xl py-5 px-6 font-bold shadow-sm" onChange={(e) => setSelected(users.find(u => u.id === e.target.value))}>
+        <option value="">Select Target Vault...</option>
+        {users.map(u => <option key={u.id} value={u.id}>{u.full_name} ({u.account_number})</option>)}
+      </select>
 
-      <div className="max-w-4xl space-y-8">
-        <select 
-          className="w-full bg-[#111] border border-white/10 rounded-2xl p-4 outline-none focus:border-red-600 appearance-none cursor-pointer"
-          onChange={(e) => setSelected(customers.find(c => c.id === e.target.value))}
-        >
-          <option value="">Select Target Vault for Protocol Management...</option>
-          {customers.map(c => <option key={c.id} value={c.id}>{c.full_name} ({c.account_number})</option>)}
-        </select>
+      {selected && restrictions && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {['cot', 'tax', 'irs'].map(p => (
+            <div key={p} className="bg-white p-8 rounded-[2.5rem] border border-gray-100">
+              <p className="text-[10px] font-black uppercase mb-4">{p.toUpperCase()}</p>
+              <button onClick={() => toggle(`${p}_enabled`)} className={`h-6 w-12 rounded-full relative ${restrictions[`${p}_enabled`] ? 'bg-[#C00000]' : 'bg-gray-100'}`}>
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${restrictions[`${p}_enabled`] ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
-        {selected && restrictions && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in zoom-in-95 duration-500">
-            {[
-              { id: 'cot', label: 'Cost of Transfer (COT)' },
-              { id: 'tax', label: 'Tax Compliance (TAX)' },
-              { id: 'irs', label: 'IRS Authority (IRS)' },
-            ].map((p) => (
-              <div key={p.id} className="bg-[#111] p-8 rounded-[2.5rem] border border-white/5 space-y-6">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-black uppercase tracking-widest text-gray-500">{p.label}</span>
-                  <button 
-                    onClick={() => toggle(`${p.id}_enabled`)}
-                    className={`h-6 w-12 rounded-full relative transition-all ${restrictions[`${p.id}_enabled`] ? 'bg-red-600' : 'bg-gray-800'}`}
-                  >
-                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${restrictions[`${p.id}_enabled`] ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest">Active Code</label>
-                  <input 
-                    className="w-full bg-black border border-white/5 rounded-xl p-3 text-sm font-mono text-red-500 font-bold outline-none focus:border-red-600"
-                    value={restrictions[`${p.id}_code`] || ''}
-                    onChange={(e) => updateCode(`${p.id}_code`, e.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {restrictions[`${p.id}_enabled`] ? (
-                    <AlertCircle size={14} className="text-red-500" />
-                  ) : (
-                    <CheckCircle size={14} className="text-emerald-500" />
-                  )}
-                  <span className={`text-[9px] font-black uppercase tracking-widest ${restrictions[`${p.id}_enabled`] ? 'text-red-500' : 'text-emerald-500'}`}>
-                    {restrictions[`${p.id}_enabled`] ? 'Enforcement Active' : 'By-Pass Enabled'}
-                  </span>
-                </div>
-              </div>
+const StaffManagement: React.FC<{ admins: any[] }> = ({ admins }) => {
+  return (
+    <div className="space-y-12 animate-slide-up">
+      <h2 className="text-3xl font-bold tracking-tight uppercase">Staff Management</h2>
+      <div className="bg-white border border-gray-100 rounded-[2.5rem] shadow-sm overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-gray-50/50 border-b border-gray-100">
+            <tr>
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase">Identity</th>
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase">Auth ID</th>
+              <th className="px-6 py-4 text-left text-[10px] font-black text-gray-400 uppercase">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {admins.map(admin => (
+              <tr key={admin.id} className="hover:bg-gray-50/50 transition-colors">
+                <td className="px-6 py-5 font-bold text-sm">{admin.full_name}</td>
+                <td className="px-6 py-5 font-mono text-[10px] text-gray-400">{admin.auth_user_id}</td>
+                <td className="px-6 py-5">
+                  <span className="px-2 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase rounded-full">ACTIVE</span>
+                </td>
+              </tr>
             ))}
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

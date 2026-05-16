@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { Shield, Key, ArrowRight, Loader2, CreditCard, Lock } from 'lucide-react';
-import { Queries } from '../supabase/queries';
+import { Shield, ArrowRight, CreditCard, Lock, Mail, Key } from 'lucide-react';
+import { customerAuth } from '../auth/customerAuth';
+import { adminAuth } from '../auth/adminAuth';
 
 const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [credentials, setCredentials] = useState({
-    accountNumber: '',
-    pin: ''
-  });
+  const [mode, setMode] = useState<'CUSTOMER' | 'ADMIN'>('CUSTOMER');
+  
+  const [customerCreds, setCustomerCreds] = useState({ accountNumber: '', pin: '' });
+  const [adminCreds, setAdminCreds] = useState({ email: '', password: '' });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,96 +17,120 @@ const Login: React.FC = () => {
     setError(null);
 
     try {
-      const { data: user, error: queryError } = await Queries.login(
-        credentials.accountNumber,
-        credentials.pin
-      );
-
-      if (queryError || !user) throw new Error('Invalid Account Number or Access PIN');
-
-      // Set local session (Simulation style)
-      localStorage.setItem('bank_user', JSON.stringify(user));
-      
-      // Redirect based on role
-      if (user.role === 'admin') {
-        window.location.hash = '#/admin';
+      if (mode === 'CUSTOMER') {
+        await customerAuth.login(customerCreds.accountNumber, customerCreds.pin);
       } else {
-        window.location.hash = '#/dashboard';
+        await adminAuth.login(adminCreds.email, adminCreds.password);
       }
-      
-      window.location.reload(); // Force app state refresh
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Cinematic Background */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-red-600/5 rounded-full blur-[120px] animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-600/5 rounded-full blur-[120px] animate-pulse delay-700" />
+    <div className="min-h-screen bg-[#F9FAFB] p-6 relative overflow-hidden text-[#111827] flex flex-col items-center justify-center">
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#C00000]/5 rounded-full blur-[120px]" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#C00000]/5 rounded-full blur-[120px]" />
 
-      <div className="w-full max-w-md z-10 animate-in fade-in zoom-in-95 duration-700">
-        <div className="flex flex-col items-center mb-12">
-          <div className="bg-red-600/10 p-6 rounded-[2.5rem] border border-red-600/20 mb-6 group hover:scale-105 transition-transform duration-500 shadow-2xl shadow-red-600/10">
-            <Shield size={48} className="text-red-600 group-hover:rotate-12 transition-transform" />
+      <div className="w-full max-w-md z-10 animate-slide-up">
+        <div className="flex flex-col items-center mb-10">
+          <div className="bg-[#C00000]/5 p-6 rounded-[2.5rem] border border-[#C00000]/10 mb-6 group hover:scale-105 transition-transform duration-500 shadow-xl shadow-[#C00000]/5">
+            <Shield size={48} className="text-[#C00000]" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tighter">FLAGSTAR <span className="text-red-600">BANK</span></h1>
-          <p className="text-gray-500 mt-2 text-[10px] uppercase tracking-[0.5em] font-black">Secure Digital Gateway</p>
+          <h1 className="text-3xl font-bold tracking-tight uppercase">Flagstar <span className="text-[#C00000]">Bank</span></h1>
+          <p className="text-gray-400 mt-2 text-[10px] uppercase tracking-[0.5em] font-black">Digital Gateway Terminal</p>
         </div>
 
-        <div className="bg-[#111] border border-white/5 p-10 rounded-[3rem] shadow-2xl relative group">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent pointer-events-none rounded-[3rem]" />
-          
-          <form onSubmit={handleLogin} className="space-y-8">
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                  <CreditCard size={12} className="text-red-600" /> Account Number
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={credentials.accountNumber}
-                  onChange={(e) => setCredentials({...credentials, accountNumber: e.target.value.toUpperCase()})}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-red-600 outline-none transition-all placeholder:text-gray-800 font-mono tracking-widest text-lg"
-                  placeholder="FL-XXXXXX"
-                />
-              </div>
+        {/* Role Toggle */}
+        <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8">
+          <button 
+            onClick={() => setMode('CUSTOMER')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'CUSTOMER' ? 'bg-white text-[#111827] shadow-sm' : 'text-gray-400'}`}
+          >
+            Customer Terminal
+          </button>
+          <button 
+            onClick={() => setMode('ADMIN')}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'ADMIN' ? 'bg-white text-[#111827] shadow-sm' : 'text-gray-400'}`}
+          >
+            Admin Shield
+          </button>
+        </div>
 
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                  <Lock size={12} className="text-red-600" /> Access PIN
-                </label>
-                <input
-                  type="password"
-                  required
-                  maxLength={6}
-                  value={credentials.pin}
-                  onChange={(e) => setCredentials({...credentials, pin: e.target.value.replace(/\D/g, '')})}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 px-6 text-white focus:border-red-600 outline-none transition-all placeholder:text-gray-800 font-mono tracking-[1.5em] text-center text-lg"
-                  placeholder="****"
-                />
+        <div className="bg-white border border-gray-100 p-10 rounded-[3rem] shadow-2xl relative">
+          <form onSubmit={handleLogin} className="space-y-8">
+            {mode === 'CUSTOMER' ? (
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <CreditCard size={12} className="text-[#C00000]" /> Account Number
+                  </label>
+                  <input
+                    type="text" required
+                    value={customerCreds.accountNumber}
+                    onChange={(e) => setCustomerCreds({...customerCreds, accountNumber: e.target.value.toUpperCase()})}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-6 focus:border-[#C00000] outline-none font-mono tracking-widest text-lg"
+                    placeholder="FL-XXXXXX"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Lock size={12} className="text-[#C00000]" /> Access PIN
+                  </label>
+                  <input
+                    type="password" required maxLength={6}
+                    value={customerCreds.pin}
+                    onChange={(e) => setCustomerCreds({...customerCreds, pin: e.target.value.replace(/\D/g, '')})}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-6 focus:border-[#C00000] outline-none font-mono tracking-[1.5em] text-center text-lg"
+                    placeholder="****"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Mail size={12} className="text-[#C00000]" /> Admin Email
+                  </label>
+                  <input
+                    type="email" required
+                    value={adminCreds.email}
+                    onChange={(e) => setAdminCreds({...adminCreds, email: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-6 focus:border-[#C00000] outline-none font-bold text-sm"
+                    placeholder="operator@flagstar.com"
+                  />
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Key size={12} className="text-[#C00000]" /> Secure Passkey
+                  </label>
+                  <input
+                    type="password" required
+                    value={adminCreds.password}
+                    onChange={(e) => setAdminCreds({...adminCreds, password: e.target.value})}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-6 focus:border-[#C00000] outline-none font-bold text-sm"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
-              <div className="p-4 bg-red-600/10 border border-red-600/20 rounded-2xl text-red-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-3 animate-in shake duration-300">
-                <div className="h-1.5 w-1.5 rounded-full bg-red-600 animate-pulse" />
+              <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-red-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-3">
+                <div className="h-1.5 w-1.5 rounded-full bg-red-600" />
                 {error}
               </div>
             )}
 
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-800 disabled:cursor-not-allowed text-white font-black py-5 rounded-2xl shadow-2xl shadow-red-600/30 transition-all flex items-center justify-center gap-3 group"
+              type="submit" disabled={loading}
+              className="w-full bg-[#C00000] hover:bg-[#A00000] disabled:bg-gray-200 text-white font-black py-5 rounded-2xl shadow-xl shadow-[#C00000]/20 transition-all flex items-center justify-center gap-3 group"
             >
-              {loading ? <Loader2 className="animate-spin" size={20} /> : (
+              {loading ? <Loader2 className="animate-spin" /> : (
                 <>
-                  <span className="uppercase tracking-widest">Authorize Access</span>
+                  <span className="uppercase tracking-widest">{mode === 'ADMIN' ? 'Activate Shield' : 'Authorize Access'}</span>
                   <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
@@ -114,12 +139,7 @@ const Login: React.FC = () => {
         </div>
 
         <div className="mt-12 text-center">
-          <p className="text-[10px] text-gray-700 uppercase tracking-[0.3em] font-bold mb-4">Fortified by Enterprise Shield Protocol</p>
-          <div className="flex items-center justify-center gap-6">
-            <div className="h-px w-12 bg-white/5" />
-            <Shield size={16} className="text-white/10" />
-            <div className="h-px w-12 bg-white/5" />
-          </div>
+          <p className="text-[10px] text-gray-300 uppercase tracking-[0.3em] font-bold">Institutional Security Protocol v4.0</p>
         </div>
       </div>
     </div>

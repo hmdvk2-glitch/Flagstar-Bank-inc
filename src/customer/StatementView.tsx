@@ -1,87 +1,119 @@
-import React from 'react';
-import { Download, FileText, ArrowUpRight, ArrowDownLeft, Shield } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Download, FileText, ArrowUpRight, ArrowDownLeft, Shield, AlertTriangle } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
 
 interface StatementViewProps {
   transactions: any[];
 }
 
 const StatementView: React.FC<StatementViewProps> = ({ transactions }) => {
+  const { user } = useAuthStore();
+
+  const filteredTransactions = useMemo(() => 
+    transactions.filter(t => t.user_id === user?.id), 
+  [transactions, user?.id]);
+
+  const groupedTransactions = useMemo(() => {
+    const today = new Date();
+    const groups: { [key: string]: any[] } = {
+      'Today': [],
+      'This Week': [],
+      'This Month': [],
+      'Older': []
+    };
+
+    filteredTransactions.forEach(txn => {
+      const date = new Date(txn.created_at || txn.createdAt);
+      const diffTime = Math.abs(today.getTime() - date.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays <= 1) groups['Today'].push(txn);
+      else if (diffDays <= 7) groups['This Week'].push(txn);
+      else if (diffDays <= 30) groups['This Month'].push(txn);
+      else groups['Older'].push(txn);
+    });
+
+    return groups;
+  }, [filteredTransactions]);
+
+  const totalCredits = filteredTransactions.filter(t => t.type === 'credit').reduce((acc, t) => acc + Number(t.amount), 0);
+  const totalDebits = filteredTransactions.filter(t => t.type === 'debit').reduce((acc, t) => acc + Number(t.amount), 0);
+
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-5xl">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h2 className="text-3xl font-black tracking-tighter uppercase">Audit Log</h2>
-          <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest font-medium">Verified Historical Ledger Records</p>
+          <h2 className="text-3xl font-black tracking-tighter uppercase text-[#111827]">Account Statement</h2>
+          <p className="text-gray-500 text-xs mt-2 uppercase tracking-widest font-medium">Official Banking Ledger</p>
         </div>
-        <button className="flex items-center gap-3 bg-white text-black px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-gray-200 transition-all shadow-xl shadow-white/5">
+        <button className="flex items-center gap-3 bg-[#111827] text-white px-6 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all shadow-xl shadow-black/10">
           <Download size={16} />
-          Generate Certified Statement
+          Download PDF
         </button>
       </div>
 
-      <div className="bg-[#111] rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl">
-        <div className="p-8 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-          <div className="flex items-center gap-4 text-gray-500">
-            <FileText size={18} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Master Transaction Registry</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Shield size={14} className="text-red-600" />
-            <span className="text-[9px] font-black text-red-600 uppercase tracking-tighter">Encrypted Audit Trail</span>
+      {/* Summary Header */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Credits</p>
+          <p className="text-2xl font-bold mt-2 text-emerald-500">+${totalCredits.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Debits</p>
+          <p className="text-2xl font-bold mt-2 text-[#111827]">-${totalDebits.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-[#C00000]/5 p-8 rounded-3xl border border-[#C00000]/10 shadow-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#C00000]">Security Restrictions</p>
+          <div className="flex items-center gap-2 mt-2">
+            <Shield size={18} className="text-[#C00000]" />
+            <span className="font-bold text-[#111827] text-sm">Active Monitoring</span>
           </div>
         </div>
+      </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-black/20 border-b border-white/5">
-                <th className="px-8 py-6 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Reference ID</th>
-                <th className="px-8 py-6 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Narration / Description</th>
-                <th className="px-8 py-6 text-left text-[10px] font-black text-gray-600 uppercase tracking-widest">Execution Date</th>
-                <th className="px-8 py-6 text-right text-[10px] font-black text-gray-600 uppercase tracking-widest">Flow Magnitude</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {transactions.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-8 py-20 text-center text-gray-700 uppercase font-black tracking-widest text-sm">
-                    No matching records discovered in vault core
-                  </td>
-                </tr>
-              ) : (
-                transactions.map((txn) => (
-                  <tr key={txn.id} className="hover:bg-white/[0.02] transition-colors group">
-                    <td className="px-8 py-8 font-mono text-[10px] text-gray-500 group-hover:text-red-500 transition-colors">
-                      {txn.id.substring(0, 13).toUpperCase()}
-                    </td>
-                    <td className="px-8 py-8">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-2 rounded-lg ${txn.type === 'credit' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                          {txn.type === 'credit' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+      <div className="space-y-8">
+        {Object.entries(groupedTransactions).map(([group, txns]) => {
+          if (txns.length === 0) return null;
+          return (
+            <div key={group} className="space-y-4">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 pl-4">{group}</h3>
+              <div className="bg-white rounded-[2rem] border border-gray-100 overflow-hidden shadow-sm">
+                <div className="divide-y divide-gray-50">
+                  {txns.map(txn => (
+                    <div key={txn.id} className="p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50/50 transition-colors">
+                      <div className="flex items-center gap-6">
+                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${
+                          txn.type === 'credit' ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-[#C00000]'
+                        }`}>
+                          {txn.type === 'credit' ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
                         </div>
-                        <span className="font-bold text-sm text-gray-300">{txn.narration || 'General Ledger Entry'}</span>
+                        <div>
+                          <p className="font-bold text-[#111827] text-sm sm:text-base">
+                            {txn.type === 'credit' ? 'CREDIT RECEIVED' : 'FUNDS TRANSFERRED'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {txn.type === 'credit' ? 'From' : 'To'}: <span className="font-semibold text-gray-700">{txn.to_account || 'FLAGSTAR SYSTEM'}</span>
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1 font-medium">{txn.narration || 'General Ledger Entry'}</p>
+                        </div>
                       </div>
-                    </td>
-                    <td className="px-8 py-8 text-sm text-gray-500 font-medium">
-                      {new Date(txn.created_at).toLocaleString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </td>
-                    <td className={`px-8 py-8 text-right font-black text-lg tracking-tighter ${
-                      txn.type === 'credit' ? 'text-emerald-500' : 'text-white'
-                    }`}>
-                      {txn.type === 'credit' ? '+' : '-'}${Number(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                      <div className="text-left sm:text-right">
+                        <p className={`text-xl font-black tracking-tighter ${
+                          txn.type === 'credit' ? 'text-emerald-500' : 'text-[#111827]'
+                        }`}>
+                          {txn.type === 'credit' ? '+' : '-'}${Number(txn.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs font-medium text-gray-400 mt-1">
+                          {new Date(txn.created_at || txn.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
