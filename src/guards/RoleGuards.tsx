@@ -3,39 +3,28 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 /**
- * ADMIN ROUTE GUARD (v5.0 State Machine)
+ * ADMIN ROUTE GUARD (v5.1 Non-Blocking)
  * 
- * Phase check:
- *   BOOTING       → show nothing (wait)
- *   ADMIN_READY   → allow
- *   ANONYMOUS     → redirect to /auth/login
- *   anything else → redirect to /customer/dashboard
+ * During BOOTING, redirect to login (safe default).
+ * After hydration completes, enforce phase-based access.
  */
 export const AdminRoute: React.FC = () => {
   const { phase } = useAuthStore();
 
-  if (phase === 'BOOTING') return null;
-  if (phase === 'ANONYMOUS' || phase === 'ERROR') return <Navigate to="/auth/login" replace />;
-  if (phase !== 'ADMIN_READY') return <Navigate to="/customer/dashboard" replace />;
-
-  return <Outlet />;
+  if (phase === 'ADMIN_READY') return <Outlet />;
+  if (phase === 'BOOTING' || phase === 'ANONYMOUS' || phase === 'ERROR') return <Navigate to="/auth/login" replace />;
+  
+  return <Navigate to="/customer/dashboard" replace />;
 };
 
 /**
- * CUSTOMER ROUTE GUARD (v5.0 State Machine)
- * 
- * Phase check:
- *   BOOTING        → show nothing (wait)
- *   CUSTOMER_READY → allow
- *   ADMIN_READY    → redirect to /admin/dashboard
- *   ANONYMOUS      → redirect to /auth/login
+ * CUSTOMER ROUTE GUARD (v5.1 Non-Blocking)
  */
 export const CustomerRoute: React.FC = () => {
   const { phase } = useAuthStore();
 
-  if (phase === 'BOOTING') return null;
-  if (phase === 'ANONYMOUS' || phase === 'ERROR') return <Navigate to="/auth/login" replace />;
+  if (phase === 'CUSTOMER_READY') return <Outlet />;
   if (phase === 'ADMIN_READY') return <Navigate to="/admin/dashboard" replace />;
-
-  return <Outlet />;
+  
+  return <Navigate to="/auth/login" replace />;
 };
