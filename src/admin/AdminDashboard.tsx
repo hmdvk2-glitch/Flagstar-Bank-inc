@@ -13,10 +13,13 @@ import {
   UserPlus,
   History,
   Menu,
-  X
+  X,
+  Wand2
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import AdminShield from './AdminShield';
 import { adminLogic } from '../lib/admin';
+import { adminService } from '../services/adminService';
 import { useAuthStore } from '../store/authStore';
 import { adminAuth } from '../auth/adminAuth';
 import CustomerWizard from './CustomerWizard';
@@ -25,6 +28,7 @@ import { supabase } from '../supabase/client';
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'USERS' | 'TRANSACTIONS' | 'RESTRICTIONS' | 'AUDIT' | 'ADMINS'>('USERS');
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
@@ -123,8 +127,16 @@ const AdminDashboard: React.FC = () => {
           </nav>
 
           <button 
+            onClick={() => navigate('/admin/setup-wizard')}
+            className="mt-4 w-full flex items-center gap-4 p-4 text-[#C00000] bg-[#C00000]/5 hover:bg-[#C00000]/10 rounded-2xl transition-colors font-bold text-sm border border-[#C00000]/10"
+          >
+            <Wand2 size={18} />
+            <span>Setup Wizard</span>
+          </button>
+
+          <button 
             onClick={handleLogout}
-            className="mt-8 w-full flex items-center gap-4 p-4 text-gray-400 hover:text-[#C00000] transition-colors font-bold text-sm"
+            className="mt-4 w-full flex items-center gap-4 p-4 text-gray-400 hover:text-[#C00000] transition-colors font-bold text-sm"
           >
             <LogOut size={18} />
             <span>Terminate Session</span>

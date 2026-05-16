@@ -2,15 +2,21 @@ import React, { useState } from 'react';
 import { Shield, Lock, X, RefreshCcw, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { adminAuth } from '../auth/adminAuth';
-import { requireAdmin } from '../auth/adminGuard';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AdminShieldProps {
   children?: React.ReactNode;
 }
 
+/**
+ * ADMIN SHIELD (v5.0 State Machine)
+ * 
+ * Uses phase-based gating instead of role checks.
+ * Phase === 'ADMIN_READY' → allow children
+ * Otherwise → 403 lockout
+ */
 const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
-  const { user } = useAuthStore();
+  const { isAdmin } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [credentials, setCredentials] = useState({ email: '', pin: '' });
   const [authError, setAuthError] = useState<string | null>(null);
@@ -31,7 +37,7 @@ const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
     }
   };
 
-  // Mode: Trigger (No children) — Discreet entry point
+  // Mode: Trigger (No children) — Discreet entry point on Home page
   if (!children) {
     return (
       <>
@@ -115,30 +121,30 @@ const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
     );
   }
 
-  try {
-    requireAdmin(user);
+  // Mode: Wrapper — Phase-based gating
+  if (isAdmin) {
     return <>{children}</>;
-  } catch (err) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#F9FAFB] text-[#111827] p-6">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white p-12 rounded-[3.5rem] border border-gray-100 mb-10 shadow-2xl shadow-[#C00000]/5 flex items-center justify-center"
-        >
-          <Lock className="h-20 w-20 text-[#C00000]" />
-        </motion.div>
-        <h1 className="text-6xl font-bold tracking-tighter mb-4 text-[#111827]">403</h1>
-        <p className="text-xs font-black text-gray-400 mb-12 uppercase tracking-[0.3em]">Institutional Restriction: Access Denied</p>
-        <button 
-          onClick={() => window.location.hash = '#/'}
-          className="px-12 py-5 bg-[#C00000] hover:bg-[#A00000] text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-[#C00000]/20 group"
-        >
-          <span className="group-hover:scale-105 transition-transform inline-block">Return to Vault</span>
-        </button>
-      </div>
-    );
   }
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#F9FAFB] text-[#111827] p-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white p-12 rounded-[3.5rem] border border-gray-100 mb-10 shadow-2xl shadow-[#C00000]/5 flex items-center justify-center"
+      >
+        <Lock className="h-20 w-20 text-[#C00000]" />
+      </motion.div>
+      <h1 className="text-6xl font-bold tracking-tighter mb-4 text-[#111827]">403</h1>
+      <p className="text-xs font-black text-gray-400 mb-12 uppercase tracking-[0.3em]">Institutional Restriction: Access Denied</p>
+      <button 
+        onClick={() => window.location.href = '/'}
+        className="px-12 py-5 bg-[#C00000] hover:bg-[#A00000] text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-[#C00000]/20 group"
+      >
+        <span className="group-hover:scale-105 transition-transform inline-block">Return to Vault</span>
+      </button>
+    </div>
+  );
 };
 
 export default AdminShield;

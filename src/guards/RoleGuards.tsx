@@ -1,32 +1,41 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { requireAdmin } from '../auth/adminGuard';
 
+/**
+ * ADMIN ROUTE GUARD (v5.0 State Machine)
+ * 
+ * Phase check:
+ *   BOOTING       → show nothing (wait)
+ *   ADMIN_READY   → allow
+ *   ANONYMOUS     → redirect to /auth/login
+ *   anything else → redirect to /customer/dashboard
+ */
 export const AdminRoute: React.FC = () => {
-  const { user, isAuthenticated } = useAuthStore();
+  const { phase } = useAuthStore();
 
-  if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
-  
-  try {
-    requireAdmin(user);
-    return <Outlet />;
-  } catch (err) {
-    return <Navigate to="/customer/dashboard" replace />;
-  }
+  if (phase === 'BOOTING') return null;
+  if (phase === 'ANONYMOUS' || phase === 'ERROR') return <Navigate to="/auth/login" replace />;
+  if (phase !== 'ADMIN_READY') return <Navigate to="/customer/dashboard" replace />;
+
+  return <Outlet />;
 };
 
+/**
+ * CUSTOMER ROUTE GUARD (v5.0 State Machine)
+ * 
+ * Phase check:
+ *   BOOTING        → show nothing (wait)
+ *   CUSTOMER_READY → allow
+ *   ADMIN_READY    → redirect to /admin/dashboard
+ *   ANONYMOUS      → redirect to /auth/login
+ */
 export const CustomerRoute: React.FC = () => {
-  const { user, isAuthenticated } = useAuthStore();
+  const { phase } = useAuthStore();
 
-  if (!isAuthenticated) return <Navigate to="/auth/login" replace />;
-  
-  try {
-    requireAdmin(user);
-    // If admin, redirect away from customer dashboard
-    return <Navigate to="/admin/dashboard" replace />;
-  } catch (err) {
-    // If not admin, they are a customer
-    return <Outlet />;
-  }
+  if (phase === 'BOOTING') return null;
+  if (phase === 'ANONYMOUS' || phase === 'ERROR') return <Navigate to="/auth/login" replace />;
+  if (phase === 'ADMIN_READY') return <Navigate to="/admin/dashboard" replace />;
+
+  return <Outlet />;
 };

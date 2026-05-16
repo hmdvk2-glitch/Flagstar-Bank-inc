@@ -1,15 +1,32 @@
-import React, { useState } from 'react';
-import { Shield, ArrowRight, CreditCard, Lock, Mail, Key } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Shield, ArrowRight, CreditCard, Lock, Mail, Key, RefreshCcw } from 'lucide-react';
 import { customerAuth } from '../auth/customerAuth';
 import { adminAuth } from '../auth/adminAuth';
+import { useAuthStore } from '../store/authStore';
 
-const Login: React.FC = () => {
+interface LoginProps {
+  hideBackground?: boolean;
+}
+
+const Login: React.FC<LoginProps> = ({ hideBackground }) => {
+  const navigate = useNavigate();
+  const { phase } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'CUSTOMER' | 'ADMIN'>('CUSTOMER');
-  
+
   const [customerCreds, setCustomerCreds] = useState({ accountNumber: '', pin: '' });
   const [adminCreds, setAdminCreds] = useState({ email: '', password: '' });
+
+  // DETERMINISTIC REDIRECT: React to phase transitions
+  useEffect(() => {
+    if (phase === 'ADMIN_READY') {
+      navigate('/admin/dashboard', { replace: true });
+    } else if (phase === 'CUSTOMER_READY') {
+      navigate('/customer/dashboard', { replace: true });
+    }
+  }, [phase, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,10 +46,18 @@ const Login: React.FC = () => {
     }
   };
 
+  const wrapperClass = hideBackground
+    ? 'p-6 text-[#111827] flex flex-col items-center justify-center'
+    : 'min-h-screen bg-[#F9FAFB] p-6 relative overflow-hidden text-[#111827] flex flex-col items-center justify-center';
+
   return (
-    <div className="min-h-screen bg-[#F9FAFB] p-6 relative overflow-hidden text-[#111827] flex flex-col items-center justify-center">
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#C00000]/5 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#C00000]/5 rounded-full blur-[120px]" />
+    <div className={wrapperClass}>
+      {!hideBackground && (
+        <>
+          <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#C00000]/5 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#C00000]/5 rounded-full blur-[120px]" />
+        </>
+      )}
 
       <div className="w-full max-w-md z-10 animate-slide-up">
         <div className="flex flex-col items-center mb-10">
@@ -45,13 +70,13 @@ const Login: React.FC = () => {
 
         {/* Role Toggle */}
         <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8">
-          <button 
+          <button
             onClick={() => setMode('CUSTOMER')}
             className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'CUSTOMER' ? 'bg-white text-[#111827] shadow-sm' : 'text-gray-400'}`}
           >
             Customer Terminal
           </button>
-          <button 
+          <button
             onClick={() => setMode('ADMIN')}
             className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${mode === 'ADMIN' ? 'bg-white text-[#111827] shadow-sm' : 'text-gray-400'}`}
           >
@@ -128,7 +153,7 @@ const Login: React.FC = () => {
               type="submit" disabled={loading}
               className="w-full bg-[#C00000] hover:bg-[#A00000] disabled:bg-gray-200 text-white font-black py-5 rounded-2xl shadow-xl shadow-[#C00000]/20 transition-all flex items-center justify-center gap-3 group"
             >
-              {loading ? <Loader2 className="animate-spin" /> : (
+              {loading ? <RefreshCcw className="animate-spin" size={20} /> : (
                 <>
                   <span className="uppercase tracking-widest">{mode === 'ADMIN' ? 'Activate Shield' : 'Authorize Access'}</span>
                   <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
@@ -139,7 +164,7 @@ const Login: React.FC = () => {
         </div>
 
         <div className="mt-12 text-center">
-          <p className="text-[10px] text-gray-300 uppercase tracking-[0.3em] font-bold">Institutional Security Protocol v4.0</p>
+          <p className="text-[10px] text-gray-300 uppercase tracking-[0.3em] font-bold">Institutional Security Protocol v5.0</p>
         </div>
       </div>
     </div>
