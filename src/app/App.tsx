@@ -1,30 +1,49 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore, authStore } from '../store/authStore';
 import { hydrateSession } from '../auth/session';
 import { supabase } from '../supabase/client';
+import { StateMachine } from '../engine/StateMachine';
+import { useAppState } from '../engine/UIEngine';
+
+// Screens
 import Login from '../customer/Login';
 import Home from './Home';
 import Dashboard from '../customer/Dashboard';
 import AdminDashboard from '../admin/AdminDashboard';
 import SetupWizardPage from '../admin/SetupWizardPage';
 import Footer from '../components/Footer';
-import { AdminRoute, CustomerRoute } from '../guards/RoleGuards';
 
 /**
- * APP BOOT CONTROLLER (v5.1 — Non-Blocking)
+ * APP BOOT CONTROLLER & ROUTER (v6.0 — Single Control Point)
  * 
- * The boot sequence runs in the background.
- * The app renders immediately — no blocking splash.
- * If hydration fails or times out, defaults to ANONYMOUS.
+ * The single source of truth for all application routing and rendering.
+ * No react-router-dom allowed.
  */
 const BOOT_TIMEOUT_MS = 3000;
 
+// 1. SINGLE BOOTSTRAP DISPATCHER
+function activateStateFlow() {
+  const path = window.location.hash.replace('#', '') || '/';
+  const state = StateMachine.resolveRoute(path);
+  StateMachine.transition(state || 'PUBLIC_HOME');
+}
+
+// 2. SINGLE ROUTE LISTENER
+window.addEventListener('hashchange', () => {
+  const path = window.location.hash.replace('#', '');
+  const state = StateMachine.resolveRoute(path);
+  if (state) StateMachine.transition(state);
+});
+
 const App: React.FC = () => {
   const { phase } = useAuthStore();
+  const appState = useAppState();
 
   useEffect(() => {
-    // Race: hydration vs timeout — whichever finishes first wins
+    // Initialize routing engine
+    activateStateFlow();
+
+    // Race: hydration vs timeout
     let didResolve = false;
 
     const bootWithTimeout = async () => {
@@ -63,35 +82,56 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // During BOOTING, render the Home page anyway (non-blocking)
-  // The state machine will redirect once identity resolves
+  // Sync Auth Phase -> State Machine (Enforce Route Guards natively)
+  useEffect(() => {
+    // If not booted yet, we allow rendering whatever state we are in (non-blocking)
+    if (phase === 'BOOTING') return;
+
+    // Guard: Admin Routes
+    if (appState === 'ADMIN_DASHBOARD' || appState === 'ADMIN_SETUP_WIZARD') {
+      if (phase !== 'ADMIN_READY') {
+        StateMachine.transition(phase === 'CUSTOMER_READY' ? 'CUSTOMER_DASHBOARD' : 'AUTH_LOGIN');
+      }
+    }
+
+    // Guard: Customer Routes
+    if (appState === 'CUSTOMER_DASHBOARD') {
+      if (phase !== 'CUSTOMER_READY') {
+        StateMachine.transition(phase === 'ADMIN_READY' ? 'ADMIN_DASHBOARD' : 'AUTH_LOGIN');
+      }
+    }
+
+    // Guard: Login Route (Redirect away if already logged in)
+    if (appState === 'AUTH_LOGIN') {
+      if (phase === 'ADMIN_READY') StateMachine.transition('ADMIN_DASHBOARD');
+      if (phase === 'CUSTOMER_READY') StateMachine.transition('CUSTOMER_DASHBOARD');
+    }
+  }, [appState, phase]);
+
+  const renderCurrentState = () => {
+    switch (appState) {
+      case 'PUBLIC_HOME':
+        return <Home />;
+      case 'AUTH_LOGIN':
+        return <Login />;
+      case 'ADMIN_DASHBOARD':
+        return <AdminDashboard />;
+      case 'ADMIN_SETUP_WIZARD':
+        return <SetupWizardPage />;
+      case 'CUSTOMER_DASHBOARD':
+        return <Dashboard />;
+      default:
+        return <Home />;
+    }
+  };
+
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-[#F9FAFB] text-[#111827] flex flex-col font-sans selection:bg-[#C00000]/10">
-        <div className="flex-1">
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Home />} />
-            <Route path="/auth/login" element={<Login />} />
-
-            {/* Admin Shield (Hardened) */}
-            <Route element={<AdminRoute />}>
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/admin/setup-wizard" element={<SetupWizardPage />} />
-            </Route>
-
-            {/* Customer Terminal (Hardened) */}
-            <Route element={<CustomerRoute />}>
-              <Route path="/customer/dashboard" element={<Dashboard />} />
-            </Route>
-
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-        <Footer />
+    <div className="min-h-screen bg-[#F9FAFB] text-[#111827] flex flex-col font-sans selection:bg-[#C00000]/10">
+      <div className="flex-1">
+        {renderCurrentState()}
       </div>
-    </BrowserRouter>
+      <Footer />
+    </div>
   );
 };
 

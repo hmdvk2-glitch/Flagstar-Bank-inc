@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Shield, ArrowRight, CreditCard, Lock, Mail, Key, RefreshCcw } from 'lucide-react';
 import { customerAuth } from '../auth/customerAuth';
 import { adminAuth } from '../auth/adminAuth';
 import { useAuthStore } from '../store/authStore';
+import { StateMachine } from '../engine/StateMachine';
 
 interface LoginProps {
   hideBackground?: boolean;
 }
 
 const Login: React.FC<LoginProps> = ({ hideBackground }) => {
-  const navigate = useNavigate();
   const { phase } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,11 +21,11 @@ const Login: React.FC<LoginProps> = ({ hideBackground }) => {
   // DETERMINISTIC REDIRECT: React to phase transitions
   useEffect(() => {
     if (phase === 'ADMIN_READY') {
-      navigate('/admin/dashboard', { replace: true });
+      StateMachine.transition('ADMIN_DASHBOARD');
     } else if (phase === 'CUSTOMER_READY') {
-      navigate('/customer/dashboard', { replace: true });
+      StateMachine.transition('CUSTOMER_DASHBOARD');
     }
-  }, [phase, navigate]);
+  }, [phase]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

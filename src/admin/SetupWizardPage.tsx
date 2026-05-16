@@ -1,23 +1,19 @@
 import React from 'react';
 import CustomerWizard from './CustomerWizard';
-import { useNavigate } from 'react-router-dom';
+import { StateMachine } from '../engine/StateMachine';
 import { Shield, ArrowRight } from 'lucide-react';
 
 /**
- * SETUP WIZARD PAGE (v5.0)
+ * SETUP WIZARD PAGE (v6.0)
  * 
  * Mandatory provisioning gateway.
- * Route: /admin/setup-wizard
  * 
  * Purpose:
  *   - Customer creation
  *   - Account provisioning
  *   - 3-code transfer security initialization
- * 
- * This page is only accessible after admin validation (AdminRoute guard).
  */
 const SetupWizardPage: React.FC = () => {
-  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center p-6">
@@ -36,13 +32,13 @@ const SetupWizardPage: React.FC = () => {
 
       <div className="z-10 w-full max-w-2xl">
         <CustomerWizard
-          onComplete={() => navigate('/admin/dashboard', { replace: true })}
-          onCancel={() => navigate('/admin/dashboard', { replace: true })}
+          onComplete={() => StateMachine.transition('ADMIN_DASHBOARD')}
+          onCancel={() => StateMachine.transition('ADMIN_DASHBOARD')}
         />
       </div>
 
       <button
-        onClick={() => navigate('/admin/dashboard')}
+        onClick={() => StateMachine.transition('ADMIN_DASHBOARD')}
         className="mt-8 z-10 text-gray-400 hover:text-[#C00000] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-colors"
       >
         Skip to Dashboard <ArrowRight size={14} />

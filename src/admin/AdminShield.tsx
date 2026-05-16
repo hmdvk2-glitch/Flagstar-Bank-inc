@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Shield, Lock, X, RefreshCcw, ArrowRight } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { adminAuth } from '../auth/adminAuth';
+import { StateMachine } from '../engine/StateMachine';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AdminShieldProps {
@@ -138,7 +139,7 @@ const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
       <h1 className="text-6xl font-bold tracking-tighter mb-4 text-[#111827]">403</h1>
       <p className="text-xs font-black text-gray-400 mb-12 uppercase tracking-[0.3em]">Institutional Restriction: Access Denied</p>
       <button 
-        onClick={() => window.location.href = '/'}
+        onClick={() => StateMachine.transition('PUBLIC_HOME')}
         className="px-12 py-5 bg-[#C00000] hover:bg-[#A00000] text-white rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-[#C00000]/20 group"
       >
         <span className="group-hover:scale-105 transition-transform inline-block">Return to Vault</span>
