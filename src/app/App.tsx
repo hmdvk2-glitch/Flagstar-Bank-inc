@@ -10,7 +10,6 @@ import Login from '../customer/Login';
 import Home from './Home';
 import Dashboard from '../customer/Dashboard';
 import AdminDashboard from '../admin/AdminDashboard';
-import SetupWizardPage from '../admin/SetupWizardPage';
 import Footer from '../components/Footer';
 
 /**
@@ -88,7 +87,7 @@ const App: React.FC = () => {
     if (phase === 'BOOTING') return;
 
     // Guard: Admin Routes
-    if (appState === 'ADMIN_DASHBOARD' || appState === 'ADMIN_SETUP_WIZARD') {
+    if (appState.startsWith('ADMIN_')) {
       if (phase !== 'ADMIN_READY') {
         StateMachine.transition(phase === 'CUSTOMER_READY' ? 'CUSTOMER_DASHBOARD' : 'AUTH_LOGIN');
       }
@@ -109,15 +108,15 @@ const App: React.FC = () => {
   }, [appState, phase]);
 
   const renderCurrentState = () => {
+    if (appState.startsWith('ADMIN_')) {
+      return <AdminDashboard />;
+    }
+
     switch (appState) {
       case 'PUBLIC_HOME':
         return <Home />;
       case 'AUTH_LOGIN':
         return <Login />;
-      case 'ADMIN_DASHBOARD':
-        return <AdminDashboard />;
-      case 'ADMIN_SETUP_WIZARD':
-        return <SetupWizardPage />;
       case 'CUSTOMER_DASHBOARD':
         return <Dashboard />;
       default:

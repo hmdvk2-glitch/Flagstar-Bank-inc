@@ -28,11 +28,21 @@ import { StateMachine } from '../engine/StateMachine';
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'USERS' | 'TRANSACTIONS' | 'RESTRICTIONS' | 'AUDIT' | 'ADMINS'>('USERS');
+  
+  const state = StateMachine.getState();
+  const activeTab =
+    state === 'ADMIN_USERS' ? 'USERS' :
+    state === 'ADMIN_LEDGER' ? 'TRANSACTIONS' :
+    state === 'ADMIN_SECURITY' ? 'RESTRICTIONS' :
+    state === 'ADMIN_AUDIT' ? 'AUDIT' :
+    state === 'ADMIN_ADMINS' ? 'ADMINS' :
+    'USERS';
+
+  const showWizard = state === 'ADMIN_SETUP_WIZARD';
+
   const [users, setUsers] = useState<any[]>([]);
   const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadData = async () => {
@@ -104,15 +114,15 @@ const AdminDashboard: React.FC = () => {
 
           <nav className="flex-1 space-y-2">
             {[
-              { id: 'USERS', label: 'Customer Central', icon: <Users size={18} /> },
-              { id: 'TRANSACTIONS', label: 'Ledger Control', icon: <ArrowRightLeft size={18} /> },
-              { id: 'RESTRICTIONS', label: 'Security Protocols', icon: <ShieldCheck size={18} /> },
-              { id: 'ADMINS', label: 'Staff Management', icon: <Shield size={18} /> },
-              { id: 'AUDIT', label: 'Audit Log', icon: <History size={18} /> },
+              { id: 'USERS', stateId: 'ADMIN_USERS', label: 'Customer Central', icon: <Users size={18} /> },
+              { id: 'TRANSACTIONS', stateId: 'ADMIN_LEDGER', label: 'Ledger Control', icon: <ArrowRightLeft size={18} /> },
+              { id: 'RESTRICTIONS', stateId: 'ADMIN_SECURITY', label: 'Security Protocols', icon: <ShieldCheck size={18} /> },
+              { id: 'ADMINS', stateId: 'ADMIN_ADMINS', label: 'Staff Management', icon: <Shield size={18} /> },
+              { id: 'AUDIT', stateId: 'ADMIN_AUDIT', label: 'Audit Log', icon: <History size={18} /> },
             ].map((item) => (
               <button
                 key={item.id}
-                onClick={() => { setActiveTab(item.id as any); setSidebarOpen(false); }}
+                onClick={() => { StateMachine.transition(item.stateId as any); setSidebarOpen(false); }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${
                   activeTab === item.id 
                   ? 'bg-gray-900 text-white shadow-xl shadow-gray-900/10' 
@@ -144,7 +154,7 @@ const AdminDashboard: React.FC = () => {
 
         {/* Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-12 w-full max-w-screen-2xl mx-auto">
-          {activeTab === 'USERS' && <CustomerManagement users={users} onUpdate={loadData} onStartWizard={() => setShowWizard(true)} />}
+          {activeTab === 'USERS' && <CustomerManagement users={users} onUpdate={loadData} onStartWizard={() => StateMachine.transition('ADMIN_SETUP_WIZARD')} />}
           {activeTab === 'TRANSACTIONS' && <LedgerControl users={users} onUpdate={loadData} adminId={user?.id} />}
           {activeTab === 'RESTRICTIONS' && <SecurityProtocols users={users} />}
           {activeTab === 'ADMINS' && <StaffManagement admins={admins} />}
@@ -155,10 +165,10 @@ const AdminDashboard: React.FC = () => {
         {showWizard && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in">
             <div className="relative w-full max-w-2xl">
-              <button onClick={() => setShowWizard(false)} className="absolute -top-12 right-0 text-white/50 hover:text-white transition-colors flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+              <button onClick={() => StateMachine.transition('ADMIN_DASHBOARD')} className="absolute -top-12 right-0 text-white/50 hover:text-white transition-colors flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
                 Cancel Provisioning <X size={16} />
               </button>
-              <CustomerWizard onComplete={() => { setShowWizard(false); loadData(); }} onCancel={() => setShowWizard(false)} />
+              <CustomerWizard onComplete={() => { StateMachine.transition('ADMIN_DASHBOARD'); loadData(); }} onCancel={() => StateMachine.transition('ADMIN_DASHBOARD')} />
             </div>
           </div>
         )}

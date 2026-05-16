@@ -18,15 +18,6 @@ const Login: React.FC<LoginProps> = ({ hideBackground }) => {
   const [customerCreds, setCustomerCreds] = useState({ accountNumber: '', pin: '' });
   const [adminCreds, setAdminCreds] = useState({ email: '', password: '' });
 
-  // DETERMINISTIC REDIRECT: React to phase transitions
-  useEffect(() => {
-    if (phase === 'ADMIN_READY') {
-      StateMachine.transition('ADMIN_DASHBOARD');
-    } else if (phase === 'CUSTOMER_READY') {
-      StateMachine.transition('CUSTOMER_DASHBOARD');
-    }
-  }, [phase]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -35,8 +26,10 @@ const Login: React.FC<LoginProps> = ({ hideBackground }) => {
     try {
       if (mode === 'CUSTOMER') {
         await customerAuth.login(customerCreds.accountNumber, customerCreds.pin);
+        StateMachine.transition('CUSTOMER_DASHBOARD');
       } else {
         await adminAuth.login(adminCreds.email, adminCreds.password);
+        StateMachine.transition('ADMIN_DASHBOARD');
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed');

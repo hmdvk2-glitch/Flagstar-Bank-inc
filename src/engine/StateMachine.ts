@@ -21,6 +21,11 @@ export type AppState =
   | 'PUBLIC_HOME'
   | 'AUTH_LOGIN'
   | 'ADMIN_DASHBOARD'
+  | 'ADMIN_USERS'
+  | 'ADMIN_LEDGER'
+  | 'ADMIN_SECURITY'
+  | 'ADMIN_AUDIT'
+  | 'ADMIN_ADMINS'
   | 'ADMIN_SETUP_WIZARD'
   | 'CUSTOMER_DASHBOARD';
 
@@ -30,6 +35,11 @@ const ROUTE_MAP: Record<string, AppState> = {
   '/login':          'AUTH_LOGIN',
   '/admin':          'ADMIN_DASHBOARD',
   '/admin/dashboard':'ADMIN_DASHBOARD',
+  '/admin/users':    'ADMIN_USERS',
+  '/admin/ledger':   'ADMIN_LEDGER',
+  '/admin/security': 'ADMIN_SECURITY',
+  '/admin/audit':    'ADMIN_AUDIT',
+  '/admin/admins':   'ADMIN_ADMINS',
   '/admin/setup':    'ADMIN_SETUP_WIZARD',
   '/customer':       'CUSTOMER_DASHBOARD',
 };
@@ -38,6 +48,11 @@ const STATE_TO_HASH: Record<AppState, string> = {
   PUBLIC_HOME:        '#/',
   AUTH_LOGIN:         '#/login',
   ADMIN_DASHBOARD:    '#/admin',
+  ADMIN_USERS:        '#/admin/users',
+  ADMIN_LEDGER:       '#/admin/ledger',
+  ADMIN_SECURITY:     '#/admin/security',
+  ADMIN_AUDIT:        '#/admin/audit',
+  ADMIN_ADMINS:       '#/admin/admins',
   ADMIN_SETUP_WIZARD: '#/admin/setup',
   CUSTOMER_DASHBOARD: '#/customer',
 };
@@ -76,6 +91,7 @@ export const StateMachine = {
    */
   transition: (newState: AppState) => {
     // LOOP PREVENTION: If already in this state, do nothing
+    if (!newState) return;
     if (_currentState === newState) return;
 
     _currentState = newState;
