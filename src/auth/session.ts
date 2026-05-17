@@ -1,101 +1,66 @@
 import { supabase } from '../supabase/client';
 import { authStore } from '../store/authStore';
 
-const CUSTOMER_SESSION_KEY = 'flagstar_customer_session';
-
 /**
- * BOOT SEQUENCE (v5.0 Deterministic)
- * 
+ * BOOT SEQUENCE (v6.1 Hardened Session Layer)
+ *
  * Flow:
- *   BOOTING → getSession() → admin check → ADMIN_READY
- *                           → customer check → CUSTOMER_READY
- *                           → fallback localStorage → CUSTOMER_READY
- *                           → nothing → ANONYMOUS
+ *   getSession() → profile lookup → role validation → AUTHENTICATED
+ *                → no session / invalid role → GUEST
  */
+
 export async function hydrateSession() {
-  authStore.setPhase('BOOTING');
-
   try {
-    // 1. Supabase Native Auth (Primary Identity Source)
-    const { data: { session } } = await supabase.auth.getSession();
+    // 1. Get Supabase session (single source of truth)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-    if (session?.user) {
-      // Check admin table first
-      const { data: adminData } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('auth_user_id', session.user.id)
-        .maybeSingle();
-
-      if (adminData) {
-        authStore.transition(
-          { ...adminData, auth_user_id: session.user.id, email: session.user.email },
-          'ADMIN_READY'
-        );
-        return;
-      }
-
-      // Check users table (customer with Supabase auth)
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      if (userData) {
-        authStore.transition(userData, 'CUSTOMER_READY');
-        return;
-      }
-
-      // Authenticated in Supabase but no matching record — new admin before setup
-      // Treat as admin if they have an active Supabase session (setup flow)
-      authStore.transition(
-        { id: session.user.id, auth_user_id: session.user.id, email: session.user.email },
-        'ADMIN_READY'
-      );
+    if (!session?.user) {
+      authStore.reset();
       return;
     }
 
-    // 2. Fallback: PIN-based customer session (Simulation Mode)
-    const stored = localStorage.getItem(CUSTOMER_SESSION_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const { data: user } = await supabase
-          .from('users')
-          .select('*')
-          .eq('account_number', parsed.account_number)
-          .single();
+    // 2. Fetch user profile (role + account metadata)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .maybeSingle();
 
-        if (user) {
-          authStore.transition(user, 'CUSTOMER_READY');
-          return;
-        }
-      } catch (e) {
-        localStorage.removeItem(CUSTOMER_SESSION_KEY);
-      }
+    // 3. Build safe user payload (NO TRUSTED SPREAD)
+    const userPayload = {
+      id: session.user.id,
+      email: session.user.email,
+      role: profile?.role ?? 'guest',
+      balance: profile?.balance ?? 0,
+    };
+
+    // 4. Strict role validation (FAIL-SECURE)
+    const allowedRoles = ['admin', 'customer'];
+
+    if (!allowedRoles.includes(userPayload.role)) {
+      await supabase.auth.signOut();
+      authStore.reset();
+      return;
     }
 
-    // 3. No identity found
-    authStore.reset();
+    // 5. Commit authenticated state
+    authStore.transition(userPayload, 'AUTHENTICATED');
   } catch (err) {
-    authStore.setPhase('ERROR', 'Session hydration failed');
+    // FAIL SAFE: never leave partial auth state
+    await supabase.auth.signOut();
+    authStore.reset();
   }
 }
 
 /**
- * Destroy all session state.
+ * Destroy all session state (logout)
  */
 export async function clearSession() {
-  await supabase.auth.signOut();
-  localStorage.removeItem(CUSTOMER_SESSION_KEY);
-  authStore.reset();
-}
-
-/**
- * Persist customer session (PIN-based simulation login).
- */
-export function saveCustomerSession(user: any) {
-  localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(user));
-  authStore.transition(user, 'CUSTOMER_READY');
+  try {
+    await supabase.auth.signOut();
+  } finally {
+    authStore.reset();
+  }
 }

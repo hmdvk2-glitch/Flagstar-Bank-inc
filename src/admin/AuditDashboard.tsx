@@ -1,123 +1,143 @@
-import React, { useState, useEffect } from 'react';
-import { Search, History, Filter } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, Lock, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../supabase/client';
 
-const AuditDashboard: React.FC = () => {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ action: '', search: '' });
+interface AdminShieldProps {
+  children?: React.ReactNode;
+}
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+const AdminShield: React.FC<AdminShieldProps> = ({ children }) => {
+  const [showLogin, setShowLogin] = useState(false);
+  const [credentials, setCredentials] = useState({ email: '', pin: '' });
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('transactions')
-      .select('*, users(full_name, account_number), admins(full_name)')
-      .order('created_at', { ascending: false });
-    
-    if (data) setLogs(data);
-    setLoading(false);
+  const navigate = useNavigate();
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.pin
+      });
+
+      if (error || !data?.user) {
+        throw new Error(error?.message || 'Invalid credentials');
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profile?.role !== 'admin') {
+        throw new Error('Access denied');
+      }
+
+      localStorage.setItem(
+        'admin_session',
+        JSON.stringify({
+          id: data.user.id,
+          email: data.user.email,
+          role: profile.role
+        })
+      );
+
+      setShowLogin(false);
+      navigate('/admin');
+
+    } catch (err: any) {
+      setAuthError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
-  const filteredLogs = logs.filter(log => {
-    if (filter.action && log.type !== filter.action) return false;
-    if (filter.search) {
-      const searchStr = filter.search.toLowerCase();
-      return (
-        log.users?.full_name?.toLowerCase().includes(searchStr) ||
-        log.admins?.full_name?.toLowerCase().includes(searchStr) ||
-        log.narration?.toLowerCase().includes(searchStr)
-      );
-    }
-    return true;
-  });
+  if (!children) {
+    return (
+      <>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowLogin(true)}
+          className="p-4 rounded-2xl bg-white border shadow-xl opacity-30 hover:opacity-100"
+        >
+          <Shield className="h-6 w-6 text-[#C00000]" />
+        </motion.button>
+
+        <AnimatePresence>
+          {showLogin && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40" onClick={() => setShowLogin(false)} />
+
+              <div className="relative bg-white p-8 rounded-2xl w-full max-w-md z-10">
+                <div className="flex justify-between items-center">
+                  <Lock className="text-[#C00000]" />
+                  <button onClick={() => setShowLogin(false)}>
+                    <X />
+                  </button>
+                </div>
+
+                <h2 className="text-xl font-bold mt-4">Admin Login</h2>
+
+                <form onSubmit={handleAdminLogin} className="space-y-4 mt-6">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    className="w-full p-3 border rounded"
+                    value={credentials.email}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, email: e.target.value })
+                    }
+                  />
+
+                  <input
+                    type="password"
+                    placeholder="PIN"
+                    className="w-full p-3 border rounded"
+                    value={credentials.pin}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, pin: e.target.value })
+                    }
+                  />
+
+                  {authError && (
+                    <p className="text-red-500 text-sm">{authError}</p>
+                  )}
+
+                  <button
+                    disabled={authLoading}
+                    className="w-full bg-[#C00000] text-white p-3 rounded"
+                  >
+                    {authLoading ? 'Verifying...' : 'Login'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
+
+  const session = localStorage.getItem('admin_session');
+
+  if (session) return <>{children}</>;
 
   return (
-    <div className="space-y-8 animate-slide-up max-w-screen-xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between md:items-end gap-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight uppercase">Audit Terminal</h2>
-          <p className="text-gray-400 text-xs mt-2 uppercase tracking-[0.2em] font-black">Global Event Traceability</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text"
-              placeholder="Search traces..."
-              className="pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-xl outline-none focus:border-[#C00000] text-sm font-medium"
-              value={filter.search}
-              onChange={e => setFilter({...filter, search: e.target.value})}
-            />
-          </div>
-          <select 
-            className="px-4 py-3 bg-white border border-gray-100 rounded-xl outline-none focus:border-[#C00000] text-sm font-medium appearance-none"
-            value={filter.action}
-            onChange={e => setFilter({...filter, action: e.target.value})}
-          >
-            <option value="">All Actions</option>
-            <option value="credit">CREDIT</option>
-            <option value="debit">DEBIT</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-[2.5rem] border border-gray-100 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50/50 border-b border-gray-100">
-              <tr>
-                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Timestamp</th>
-                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Action</th>
-                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Target Account</th>
-                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Admin ID</th>
-                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-8 py-12 text-center text-sm font-medium text-gray-400">Loading traces...</td>
-                </tr>
-              ) : filteredLogs.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-8 py-12 text-center text-sm font-medium text-gray-400">No matching audit traces found.</td>
-                </tr>
-              ) : (
-                filteredLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-8 py-6 text-xs text-gray-500 font-medium">
-                      {new Date(log.created_at || log.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                        log.type === 'credit' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-[#C00000]'
-                      }`}>
-                        {log.type}
-                      </span>
-                    </td>
-                    <td className="px-8 py-6">
-                      <p className="font-bold text-sm">{log.users?.full_name || 'Unknown'}</p>
-                      <p className="text-[10px] text-gray-400 font-mono mt-1">{log.users?.account_number}</p>
-                    </td>
-                    <td className="px-8 py-6 font-mono text-[10px] text-gray-400">
-                      {log.admins?.full_name || 'SYSTEM'}
-                    </td>
-                    <td className={`px-8 py-6 text-right font-black ${log.type === 'credit' ? 'text-emerald-500' : 'text-[#111827]'}`}>
-                      {log.type === 'credit' ? '+' : '-'}${Number(log.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h1 className="text-4xl font-bold">403</h1>
+      <p>Access Denied</p>
+      <button onClick={() => navigate('/')}>Return</button>
     </div>
   );
 };
 
-export default AuditDashboard;
+export default AdminShield;

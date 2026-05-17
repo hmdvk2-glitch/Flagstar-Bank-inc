@@ -6,7 +6,7 @@ export type Customer = {
   accountNumber: string;
   account_number?: string;
   balance: number;
-  role: "admin" | "customer";
+  role: "customer";
   kycStatus?: string;
 };
 
@@ -23,6 +23,5 @@ export type Transaction = {
   narration?: string;
   createdAt?: string;
   created_at?: string;
-  adminActorId?: string;
   referenceNumber?: string;
 };
