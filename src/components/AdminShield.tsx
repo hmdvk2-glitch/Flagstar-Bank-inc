@@ -29,7 +29,7 @@ const AdminShield: React.FC = () => {
       if (error) throw error;
       toast.success('Admin authenticated');
       setIsOpen(false);
-      navigate('/admin/dashboard');
+      navigate('/dashboard');
       // Store state is updated in App.tsx onAuthStateChange listener
     } catch (error: any) {
       toast.error(error.message || 'Login failed');

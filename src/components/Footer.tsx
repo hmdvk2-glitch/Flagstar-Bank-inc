@@ -1,6 +1,6 @@
 import React from 'react';
 import { Shield, Lock, Globe, Cpu } from 'lucide-react';
-import AdminShield from '../admin/AdminShield';
+import AdminShield from './AdminShield';
 
 const Footer: React.FC = () => {
   return (
