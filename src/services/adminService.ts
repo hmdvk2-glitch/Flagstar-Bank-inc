@@ -49,7 +49,7 @@ export const fetchAllTransactions = async () => {
 };
 
 export const fetchAllTransferCodes = async () => {
-  const { data, error } = await supabase.from('transfer_codes').select('*, customers(name)').order('created_at', { ascending: false });
+  const { data, error } = await supabase.from('transfer_codes').select('*, customers!transfer_codes_customer_id_fkey(name)');
   if (error) throw error;
   return data;
 };

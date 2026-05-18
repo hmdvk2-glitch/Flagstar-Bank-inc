@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, ArrowRight, CreditCard, Lock, RefreshCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { customerAuth } from '../auth/customerAuth';
+import { customerLogin } from '../services/customerService';
 
 interface LoginProps {
   hideBackground?: boolean;
@@ -24,7 +24,7 @@ const Login: React.FC<LoginProps> = ({ hideBackground }) => {
     setError(null);
 
     try {
-      await customerAuth.login(
+      await customerLogin(
         customerCreds.accountNumber,
         customerCreds.pin
       );

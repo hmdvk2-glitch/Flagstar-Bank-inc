@@ -28,7 +28,7 @@ export const transferLogic = {
     // This handles balance checks, race condition locking, and state initialization in one atomic DB call.
     const { data: txnId, error: rpcError } = await supabase.rpc('customer_initiate_transfer', {
       p_sender_id: userId,
-      p_amount: parsedAmount,
+      p_amount: amount,
       p_recipient_account: recipient,
       p_narration: narration || `Wire Transfer to ${recipient}`
     });

@@ -3,7 +3,14 @@
 @import "tailwindcss";
 
 :root {
-  --flagstar-red: #C00000;
+  --flagstar-red: #C8102E;
+  --flagstar-teal: #004B5C;
+  --flagstar-teal-dark: #003E4C;
+  --flagstar-slate: #002D38;
+  --flagstar-orange: #F15A24;
+  --flagstar-yellow: #FFB81C;
+  --flagstar-green: #84BD00;
+  --flagstar-bg: #F8FAFC;
   --bg-light: #F9FAFB;
   --card-white: #FFFFFF;
 }
